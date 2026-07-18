@@ -1,0 +1,62 @@
+package com.chessengine.controller;
+
+import com.chessengine.dto.EngineConfigDTO;
+import com.chessengine.dto.GameStatusDTO;
+import com.chessengine.dto.MoveRequestDTO;
+import com.chessengine.service.ChessService;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.HashMap;
+import java.util.Map;
+
+@Slf4j
+@RestController
+@RequestMapping("/api/chess")
+@CrossOrigin(origins = "*") // Allow frontend calls from anywhere during development
+public class ChessController {
+
+    private final ChessService chessService;
+
+    public ChessController(ChessService chessService) {
+        this.chessService = chessService;
+    }
+
+    @GetMapping("/status")
+    public ResponseEntity<Map<String, Object>> getEngineStatus() {
+        boolean running = chessService.isEngineRunning();
+        Map<String, Object> response = new HashMap<>();
+        response.put("running", running);
+        response.put("engine", "Stockfish 18 (UCI)");
+        response.put("maxElo", 3200);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/best-move")
+    public ResponseEntity<GameStatusDTO> getBestMove(@RequestBody MoveRequestDTO request) {
+        log.info("Received best-move request with FEN: {}", request.getFen());
+        try {
+            GameStatusDTO status = chessService.getBestMove(request);
+            return ResponseEntity.ok(status);
+        } catch (Exception e) {
+            log.error("Error calculating best move", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @PostMapping("/config")
+    public ResponseEntity<Map<String, String>> configureEngine(@RequestBody EngineConfigDTO config) {
+        log.info("Updating engine configuration to: {}", config);
+        try {
+            chessService.configureEngine(config);
+            Map<String, String> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("message", "Engine config updated successfully");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error configuring engine", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+}
