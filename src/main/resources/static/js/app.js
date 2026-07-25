@@ -19,6 +19,14 @@ $(document).ready(function() {
     let timerInterval = null;
     let playerColor = 'white'; // 'white', 'black', 'random'
 
+    // Multiplayer Online State
+    let isMultiplayerOnline = false;
+    let currentSubmode1v1 = 'local'; // 'local' or 'online'
+    let currentRoomId = null;
+    let myPlayerId = null;
+    let myAssignedColor = 'white';
+    let stompClient = null;
+
     // PGN Stepper & Analysis State
     let isAnalysisComplete = false;
     let analysisMoves = [];
@@ -204,14 +212,43 @@ $(document).ready(function() {
             $('#setup-analyze').removeClass('active');
             $('#field-color').show();
             $('#field-elo').show();
+            $('#field-1v1-submode').hide();
+            $('#field-online-rooms').hide();
+            $('#btn-start-match').show();
         } else if (mode === '1v1') {
             $('#setup-match').addClass('active');
             $('#setup-analyze').removeClass('active');
             $('#field-color').hide();
             $('#field-elo').hide();
+            $('#field-1v1-submode').show();
+            if (currentSubmode1v1 === 'online') {
+                $('#field-online-rooms').show();
+                $('#btn-start-match').hide();
+            } else {
+                $('#field-online-rooms').hide();
+                $('#btn-start-match').show();
+            }
         } else if (mode === 'analyze') {
             $('#setup-match').removeClass('active');
             $('#setup-analyze').addClass('active');
+            $('#field-1v1-submode').hide();
+            $('#field-online-rooms').hide();
+            $('#btn-start-match').show();
+        }
+    });
+
+    // Submode toggle (Local 1v1 vs Online 1v1)
+    $('.submode-btn').on('click', function() {
+        $('.submode-btn').removeClass('active');
+        $(this).addClass('active');
+        currentSubmode1v1 = $(this).data('submode');
+
+        if (currentSubmode1v1 === 'online') {
+            $('#field-online-rooms').slideDown(200);
+            $('#btn-start-match').hide();
+        } else {
+            $('#field-online-rooms').slideUp(200);
+            $('#btn-start-match').show();
         }
     });
 
@@ -242,6 +279,7 @@ $(document).ready(function() {
     $('#btn-start-match').on('click', function() {
         const mode = $('.mode-card.active').data('mode');
         playerColor = $('#color-select').val();
+        isMultiplayerOnline = false;
         
         if (playerColor === 'random') {
             playerColor = Math.random() < 0.5 ? 'white' : 'black';
@@ -264,6 +302,152 @@ $(document).ready(function() {
             startClockTicking();
         }
     });
+
+    // Create Online Room Handler
+    $('#btn-create-room').on('click', function() {
+        const preferredColor = $('#create-room-color').val();
+        const timeVal = $('#time-select').val();
+        const timeControl = timeVal === 'unlimited' ? 0 : parseInt(timeVal);
+
+        $.ajax({
+            url: '/api/multiplayer/create',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                preferredColor: preferredColor,
+                timeControlMinutes: timeControl
+            }),
+            success: function(response) {
+                currentRoomId = response.room.roomId;
+                myPlayerId = response.playerId;
+                myAssignedColor = response.playerColor;
+                isMultiplayerOnline = true;
+
+                $('#created-room-code').text(currentRoomId);
+                $('#created-room-box').slideDown(200);
+
+                connectWebSocket(currentRoomId);
+            },
+            error: function(err) {
+                alert("Failed to create room: " + (err.responseJSON ? err.responseJSON.message : "Error"));
+            }
+        });
+    });
+
+    // Join Online Room Handler
+    $('#btn-join-room').on('click', function() {
+        const roomId = $('#join-room-input').val().trim();
+        if (!roomId) {
+            alert("Please enter a valid Room Code (e.g. ROOM-A4B2).");
+            return;
+        }
+
+        $.ajax({
+            url: '/api/multiplayer/join',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ roomId: roomId }),
+            success: function(response) {
+                currentRoomId = response.room.roomId;
+                myPlayerId = response.playerId;
+                myAssignedColor = response.playerColor;
+                isMultiplayerOnline = true;
+
+                connectWebSocket(currentRoomId, function() {
+                    startOnlineMatch(response.room);
+                });
+            },
+            error: function(err) {
+                alert("Failed to join room: " + (err.responseJSON ? err.responseJSON.message : "Invalid or full room code"));
+            }
+        });
+    });
+
+    // Connect STOMP WebSocket
+    function connectWebSocket(roomId, onConnectCallback) {
+        if (stompClient && stompClient.connected) {
+            if (onConnectCallback) onConnectCallback();
+            return;
+        }
+
+        const socket = new SockJS('/ws-chess');
+        stompClient = Stomp.over(socket);
+        stompClient.debug = null; // Disable debug noise
+
+        stompClient.connect({}, function(frame) {
+            console.log('Connected to STOMP WebSocket for room: ' + roomId);
+
+            stompClient.subscribe('/topic/room/' + roomId, function(message) {
+                const payload = JSON.parse(message.body);
+                handleRoomUpdate(payload);
+            });
+
+            if (onConnectCallback) onConnectCallback();
+        }, function(error) {
+            console.error('WebSocket connection error:', error);
+        });
+    }
+
+    // Handle incoming WebSocket messages
+    function handleRoomUpdate(data) {
+        if (data.roomId && data.status) {
+            // Full GameRoom state update
+            if (data.status === 'IN_PROGRESS' && $('#game-view').is(':hidden')) {
+                startOnlineMatch(data);
+            } else if (data.status === 'FINISHED') {
+                let title = "Game Over";
+                let message = data.finishReason || "";
+                if (data.winnerColor === myAssignedColor) {
+                    title = "Victory!";
+                    message += " You won!";
+                } else if (data.winnerColor === 'draw') {
+                    title = "Draw!";
+                } else {
+                    title = "Defeat";
+                    message += " Opponent won.";
+                }
+                showGameOverModal(title, message);
+            }
+        } else if (data.from && data.to) {
+            // Move event from opponent
+            if (data.playerId !== myPlayerId) {
+                const opponentMoveObj = game.move({
+                    from: data.from,
+                    to: data.to,
+                    promotion: data.promotion || 'q'
+                });
+                if (opponentMoveObj) {
+                    board.position(game.fen());
+                    updateMoveHistoryTable();
+                    startClockTicking();
+                    if (game.game_over()) {
+                        handleGameOver();
+                    }
+                }
+            }
+        }
+    }
+
+    function startOnlineMatch(room) {
+        showGameView('1v1');
+        resetGame();
+        isMultiplayerOnline = true;
+
+        board.orientation(myAssignedColor);
+
+        if (myAssignedColor === 'white') {
+            $('#player-name').text('You (White)');
+            $('#opponent-name').text('Opponent (Black)');
+        } else {
+            $('#player-name').text('Opponent (White)');
+            $('#opponent-name').text('You (Black)');
+        }
+
+        $engineStatusLabel.text(`Online Match (${room.roomId}) - ${myAssignedColor === 'white' ? "Your Turn" : "Opponent's Turn"}`);
+        $engineStatusDot.addClass('online');
+
+        startClockTicking();
+    }
 
     $('#btn-load-pgn').on('click', function() {
         const pgnText = $('#pgn-textarea').val().trim();
@@ -463,6 +647,11 @@ $(document).ready(function() {
     $('#btn-resign').on('click', function() {
         if (game.game_over() || isGameOver) return;
         
+        if (isMultiplayerOnline && stompClient && stompClient.connected) {
+            stompClient.send('/app/room/' + currentRoomId + '/resign', {}, myPlayerId);
+            return;
+        }
+
         let title = "Match Resigned";
         let message = "";
         
@@ -504,6 +693,14 @@ $(document).ready(function() {
 
         const turn = game.turn();
         
+        // Block clicking if playing online multiplayer and it's opponent's turn
+        if (isMultiplayerOnline) {
+            const currentTurnColor = turn === 'w' ? 'white' : 'black';
+            if (myAssignedColor !== currentTurnColor) {
+                return;
+            }
+        }
+
         // Block clicking if it's the computer's turn in Computer mode
         if (currentGameMode === 'computer') {
             const orientation = board.orientation();
@@ -569,6 +766,20 @@ $(document).ready(function() {
     }
 
     function handlePlayerMove(move) {
+        if (isMultiplayerOnline && stompClient && stompClient.connected) {
+            stompClient.send('/app/room/' + currentRoomId + '/move', {}, JSON.stringify({
+                roomId: currentRoomId,
+                playerId: myPlayerId,
+                from: move.from,
+                to: move.to,
+                san: move.san,
+                fen: game.fen(),
+                promotion: move.promotion || 'q',
+                isCheckmate: game.in_checkmate(),
+                isDraw: game.in_draw()
+            }));
+        }
+
         if (currentGameMode === '1v1') {
             updateMoveHistoryTable();
             startClockTicking();
