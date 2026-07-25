@@ -1,8 +1,6 @@
 package com.chessengine.controller;
 
-import com.chessengine.dto.EngineConfigDTO;
-import com.chessengine.dto.GameStatusDTO;
-import com.chessengine.dto.MoveRequestDTO;
+import com.chessengine.dto.*;
 import com.chessengine.service.ChessService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -38,6 +36,13 @@ public class ChessController {
         log.info("Received best-move request with FEN: {}", request.getFen());
         GameStatusDTO status = chessService.getBestMove(request);
         return ResponseEntity.ok(status);
+    }
+
+    @PostMapping("/analyze")
+    public ResponseEntity<GameAnalysisResponseDTO> analyzeGame(@RequestBody AnalyzeRequestDTO request) {
+        log.info("Received game analysis request for {} moves", request.getMoves() != null ? request.getMoves().size() : 0);
+        GameAnalysisResponseDTO analysis = chessService.analyzeGame(request);
+        return ResponseEntity.ok(analysis);
     }
 
     @PostMapping("/config")

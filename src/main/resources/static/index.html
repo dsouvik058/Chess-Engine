@@ -266,6 +266,9 @@
                         <button id="btn-resign" class="btn btn-warning" title="Resign current match">
                             <i class="fa-solid fa-flag"></i> Resign
                         </button>
+                        <button id="btn-sidebar-analyze" class="btn btn-accent-gradient" style="display: none; width: 100%; grid-column: span 2; margin-top: 4px;" title="Analyze completed game">
+                            <i class="fa-solid fa-magnifying-glass-chart"></i> Analyze Game
+                        </button>
                     </div>
 
                     <!-- Game Review / Move Analysis -->
@@ -355,9 +358,14 @@
             <h2 id="modal-title">Game Over</h2>
             <p id="modal-message">White wins by checkmate</p>
             <div class="modal-pgn-wrapper" style="margin-bottom: 20px;">
-                <button id="btn-modal-copy-pgn" class="btn btn-secondary" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 0.85rem; padding: 10px;">
-                    <i class="fa-solid fa-copy"></i> Copy PGN for Analysis
-                </button>
+                <div style="display: flex; flex-direction: column; gap: 10px; width: 100%;">
+                    <button id="btn-modal-analyze" class="btn btn-accent-gradient" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 0.95rem; padding: 12px; font-weight: 600;">
+                        <i class="fa-solid fa-magnifying-glass-chart"></i> Analyze Game
+                    </button>
+                    <button id="btn-modal-copy-pgn" class="btn btn-secondary" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 0.85rem; padding: 10px;">
+                        <i class="fa-solid fa-copy"></i> Copy PGN
+                    </button>
+                </div>
                 <div id="copy-pgn-toast" style="display: none; font-size: 0.8rem; color: var(--accent-green); margin-top: 8px; font-weight: 500;">
                     <i class="fa-solid fa-check-circle"></i> PGN copied to clipboard!
                 </div>
@@ -377,6 +385,6 @@
     <!-- Chessboard.js for the board display -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
     <!-- Client Application Logic -->
-    <script src="js/app.js?v=9"></script>
+    <script src="js/app.js?v=11"></script>
 </body>
 </html>

@@ -125,10 +125,10 @@ $(document).ready(function() {
 
     function showGameView(mode) {
         currentGameMode = mode;
-        $('#welcome-view').fadeOut(200, function() {
+
+        function applyModeLayout() {
             $('#game-view').fadeIn(200);
-            
-            // Customize sidebar layouts based on mode
+
             if (mode === 'computer') {
                 $('#sidebar-settings-panel').show();
                 $('#sidebar-analytics-panel').show();
@@ -137,10 +137,10 @@ $(document).ready(function() {
                 $('#game-accuracy-panel').hide();
                 $('#engine-status-indicator').show();
                 $('.eval-bar-container').show();
-                $('#sidebar-review-panel').show(); // Show review section
+                $('#sidebar-review-panel').show();
                 $('#clock-white').show().removeClass('active low-time');
                 $('#clock-black').show().removeClass('active low-time');
-                
+
                 const elo = $('#portal-elo-slider').val();
                 if (playerColor === 'white') {
                     $('#player-name').text('Player');
@@ -158,10 +158,10 @@ $(document).ready(function() {
                 $('#game-accuracy-panel').hide();
                 $('#engine-status-indicator').hide();
                 $('.eval-bar-container').hide();
-                $('#sidebar-review-panel').hide(); // Remove/hide review section in 1v1
+                $('#sidebar-review-panel').hide();
                 $('#clock-white').show().removeClass('active low-time');
                 $('#clock-black').show().removeClass('active low-time');
-                
+
                 $('#player-name').text('White Player');
                 $('#opponent-name').text('Black Player');
                 setupTimeFormat();
@@ -173,22 +173,24 @@ $(document).ready(function() {
                 $('#game-accuracy-panel').show();
                 $('#engine-status-indicator').show();
                 $('.eval-bar-container').show();
-                $('#sidebar-review-panel').show(); // Show review section
-                
-                // Show clocks in PGN Analysis mode
+                $('#sidebar-review-panel').show();
+
                 $('#clock-white').show().removeClass('active low-time').text('--:--');
                 $('#clock-black').show().removeClass('active low-time').text('--:--');
-                
-                $('#player-name').text('White Player');
-                $('#opponent-name').text('Black Player');
             }
-            
-            // Adjust board size inside new display block
+
             setTimeout(function() {
                 board.resize();
                 syncEvalBarHeight();
             }, 100);
-        });
+        }
+
+        if ($('#welcome-view').is(':visible')) {
+            $('#welcome-view').fadeOut(200, applyModeLayout);
+        } else {
+            $('#welcome-view').hide();
+            applyModeLayout();
+        }
     }
 
     // Portal Interactive Handlers
@@ -1025,6 +1027,7 @@ $(document).ready(function() {
         isGameOver = false; // Reset game state flag
         removeHighlights();
         updateClassificationCounts();
+        $('#btn-sidebar-analyze').hide();
         
         $moveHistoryBody.empty();
         $depthStat.text('0');
@@ -1041,6 +1044,7 @@ $(document).ready(function() {
         $('#modal-title').text(title);
         $('#modal-message').text(message);
         $('#copy-pgn-toast').hide(); // Hide toast initially
+        $('#btn-sidebar-analyze').show(); // Allow direct analysis from sidebar after modal close
         $('#game-over-modal').fadeIn(300);
         
         isGameOver = true; // Use boolean flag to block clicks instead of game.load empty board FEN!
@@ -1432,6 +1436,79 @@ $(document).ready(function() {
     $('#btn-modal-menu').on('click', function() {
         $('#game-over-modal').fadeOut(200);
         showWelcomeView();
+    });
+
+    function buildPgnFromHistory(moves) {
+        if (!moves || moves.length === 0) return "";
+        let pgn = '[Event "Chess Engine Match"]\n';
+        pgn += '[Site "Chess Platform"]\n';
+        pgn += '[Date "' + new Date().toISOString().split('T')[0] + '"]\n';
+        pgn += '[White "White Player"]\n';
+        pgn += '[Black "Black Player"]\n';
+        pgn += '[Result "*"]\n\n';
+        
+        let moveNum = 1;
+        for (let i = 0; i < moves.length; i++) {
+            if (i % 2 === 0) {
+                pgn += moveNum + '. ' + moves[i].san + ' ';
+            } else {
+                pgn += moves[i].san + ' ';
+                moveNum++;
+            }
+        }
+        return pgn.trim();
+    }
+
+    function exportAndStartAnalysis(customPgn) {
+        const movesList = game.history({ verbose: true });
+        let pgnText = customPgn || game.pgn();
+
+        if ((!pgnText || pgnText.trim().length === 0) && movesList.length > 0) {
+            pgnText = buildPgnFromHistory(movesList);
+        }
+
+        if (!movesList || movesList.length === 0) {
+            alert("No moves recorded in this game to analyze.");
+            return;
+        }
+
+        $('#game-over-modal').fadeOut(200);
+        $('#pgn-textarea').val(pgnText);
+
+        showGameView('analyze');
+
+        // Configure player names
+        let whiteName = 'White Player';
+        let blackName = 'Black Player';
+        if (currentGameMode === 'computer') {
+            if (playerColor === 'white') {
+                whiteName = 'You (White)';
+                blackName = `Stockfish (${$eloSlider.val()} ELO)`;
+            } else {
+                whiteName = `Stockfish (${$eloSlider.val()} ELO)`;
+                blackName = 'You (Black)';
+            }
+        }
+
+        $('#player-name').text(whiteName);
+        $('#opponent-name').text(blackName);
+
+        analysisMoves = movesList;
+        game.reset();
+        board.start();
+
+        // Start engine analysis automatically
+        startBulkAnalysis(analysisMoves);
+    }
+
+    $('#btn-modal-analyze').on('click', function(e) {
+        e.preventDefault();
+        exportAndStartAnalysis();
+    });
+
+    $('#btn-sidebar-analyze').on('click', function(e) {
+        e.preventDefault();
+        exportAndStartAnalysis();
     });
 
     $('#btn-modal-copy-pgn').on('click', function() {
