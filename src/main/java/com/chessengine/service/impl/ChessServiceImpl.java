@@ -3,7 +3,7 @@ package com.chessengine.service.impl;
 import com.chessengine.dto.EngineConfigDTO;
 import com.chessengine.dto.GameStatusDTO;
 import com.chessengine.dto.MoveRequestDTO;
-import com.chessengine.engine.StockfishProcessManager;
+import com.chessengine.engine.process.StockfishProcessManager;
 import com.chessengine.service.ChessService;
 import org.springframework.stereotype.Service;
 

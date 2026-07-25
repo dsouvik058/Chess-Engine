@@ -14,7 +14,7 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequestMapping("/api/chess")
-@CrossOrigin(origins = "*") // Allow frontend calls from anywhere during development
+@CrossOrigin(origins = "*")
 public class ChessController {
 
     private final ChessService chessService;
@@ -36,27 +36,17 @@ public class ChessController {
     @PostMapping("/best-move")
     public ResponseEntity<GameStatusDTO> getBestMove(@RequestBody MoveRequestDTO request) {
         log.info("Received best-move request with FEN: {}", request.getFen());
-        try {
-            GameStatusDTO status = chessService.getBestMove(request);
-            return ResponseEntity.ok(status);
-        } catch (Exception e) {
-            log.error("Error calculating best move", e);
-            return ResponseEntity.internalServerError().build();
-        }
+        GameStatusDTO status = chessService.getBestMove(request);
+        return ResponseEntity.ok(status);
     }
 
     @PostMapping("/config")
     public ResponseEntity<Map<String, String>> configureEngine(@RequestBody EngineConfigDTO config) {
         log.info("Updating engine configuration to: {}", config);
-        try {
-            chessService.configureEngine(config);
-            Map<String, String> response = new HashMap<>();
-            response.put("status", "success");
-            response.put("message", "Engine config updated successfully");
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("Error configuring engine", e);
-            return ResponseEntity.internalServerError().build();
-        }
+        chessService.configureEngine(config);
+        Map<String, String> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("message", "Engine config updated successfully");
+        return ResponseEntity.ok(response);
     }
 }
