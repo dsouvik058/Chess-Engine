@@ -35,6 +35,22 @@ public class StockfishInstaller {
                 return;
             }
 
+            // Linux OS system-installed Stockfish fallback
+            String os = System.getProperty("os.name", "").toLowerCase();
+            if (os.contains("linux") || os.contains("nix")) {
+                Path sysPath1 = Paths.get("/usr/games/stockfish");
+                Path sysPath2 = Paths.get("/usr/bin/stockfish");
+                if (Files.exists(sysPath1)) {
+                    properties.setBinaryPath(sysPath1.toString());
+                    log.info("Found Linux Stockfish binary at: {}", sysPath1);
+                    return;
+                } else if (Files.exists(sysPath2)) {
+                    properties.setBinaryPath(sysPath2.toString());
+                    log.info("Found Linux Stockfish binary at: {}", sysPath2);
+                    return;
+                }
+            }
+
             log.info("Stockfish executable not found. Downloading from: {}", properties.getDownloadUrl());
             Path dirPath = Paths.get(properties.getBinaryDir());
             if (!Files.exists(dirPath)) {

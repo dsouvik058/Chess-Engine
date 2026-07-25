@@ -979,10 +979,10 @@ $(document).ready(function() {
     // Helper functions for scoring & classification
     function getNumericScore(scoreType, scoreValue) {
         if (scoreType === 'mate') {
-            if (scoreValue > 0) {
-                return 10000 - scoreValue;
+            if (scoreValue >= 0) {
+                return 10000 - Math.min(Math.abs(scoreValue), 99);
             } else {
-                return -10000 - scoreValue;
+                return -10000 + Math.min(Math.abs(scoreValue), 99);
             }
         }
         return scoreValue;
@@ -1011,6 +1011,26 @@ $(document).ready(function() {
     }
 
     function classifyMove(beforeScore, afterScore, isWhite, move, isBook) {
+        // Checkmate Guard: Delivering checkmate is ALWAYS a winning move (Best or Brilliant)
+        if (move && ((move.san && move.san.includes('#')) || (isWhite && afterScore >= 9000) || (!isWhite && afterScore <= -9000))) {
+            if (detectSacrifice(move)) {
+                return {
+                    type: 'brilliant',
+                    label: 'Brilliant',
+                    icon: 'fa-bolt',
+                    class: 'move-brilliant',
+                    desc: 'A winning checkmate with a brilliant sacrifice!'
+                };
+            }
+            return {
+                type: 'best',
+                label: 'Best Move',
+                icon: 'fa-star',
+                class: 'move-best',
+                desc: 'Checkmate - Game Winning Move!'
+            };
+        }
+
         const delta = isWhite ? (afterScore - beforeScore) : (beforeScore - afterScore);
         const pawnDelta = delta / 100.0;
 
@@ -1288,13 +1308,6 @@ $(document).ready(function() {
         // Add start position
         analysisHistory.push('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
         analysisEvaluations.push({ score: 30, type: 'cp', value: 30 });
-        analysisClassifications.push({
-            type: 'book',
-            label: 'Book',
-            icon: 'fa-book',
-            class: 'move-book',
-            desc: 'Starting Position'
-        });
         
         const tempGame = new Chess();
         const positionsToQuery = [];
@@ -1351,7 +1364,7 @@ $(document).ready(function() {
                     analysisEvaluations.push({ score: score, type: sType, value: sVal });
                     
                     const prevScore = analysisEvaluations[idx].score;
-                    const isWhite = (idx % 2 === 0);
+                    const isWhite = target.move.color ? (target.move.color === 'w') : (idx % 2 === 0);
                     const isBook = (idx < 8);
                     
                     const classification = classifyMove(prevScore, score, isWhite, target.move, isBook);
