@@ -62,4 +62,16 @@ public class MultiplayerController {
         GameRoom updatedRoom = multiplayerService.resignMatch(roomId, playerId);
         messagingTemplate.convertAndSend("/topic/room/" + roomId, updatedRoom);
     }
+
+    @MessageMapping("/room/{roomId}/chat")
+    public void handleChat(@DestinationVariable String roomId, ChatMessageDTO chatMessage) {
+        log.info("Received WebSocket chat message for room {}: {}", roomId, chatMessage.getMessage());
+        messagingTemplate.convertAndSend("/topic/room/" + roomId + "/chat", chatMessage);
+    }
+
+    @MessageMapping("/room/{roomId}/signal")
+    public void handleSignal(@DestinationVariable String roomId, SignalMessageDTO signal) {
+        log.info("Received WebRTC signal for room {}: {}", roomId, signal.getType());
+        messagingTemplate.convertAndSend("/topic/room/" + roomId + "/signal", signal);
+    }
 }

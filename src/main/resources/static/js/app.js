@@ -148,6 +148,7 @@ $(document).ready(function() {
                 $('#engine-status-indicator').show();
                 $('.eval-bar-container').show();
                 $('#sidebar-review-panel').show();
+                $('#sidebar-chat-panel').hide();
                 $('#clock-white').show().removeClass('active low-time');
                 $('#clock-black').show().removeClass('active low-time');
 
@@ -169,6 +170,7 @@ $(document).ready(function() {
                 $('#engine-status-indicator').hide();
                 $('.eval-bar-container').hide();
                 $('#sidebar-review-panel').hide();
+                $('#sidebar-chat-panel').show();
                 $('#clock-white').show().removeClass('active low-time');
                 $('#clock-black').show().removeClass('active low-time');
 
@@ -184,6 +186,7 @@ $(document).ready(function() {
                 $('#engine-status-indicator').show();
                 $('.eval-bar-container').show();
                 $('#sidebar-review-panel').show();
+                $('#sidebar-chat-panel').hide();
 
                 $('#clock-white').show().removeClass('active low-time').text('--:--');
                 $('#clock-black').show().removeClass('active low-time').text('--:--');
@@ -383,6 +386,16 @@ $(document).ready(function() {
             stompClient.subscribe('/topic/room/' + roomId, function(message) {
                 const payload = JSON.parse(message.body);
                 handleRoomUpdate(payload);
+            });
+
+            stompClient.subscribe('/topic/room/' + roomId + '/chat', function(message) {
+                const chatMsg = JSON.parse(message.body);
+                appendChatMessage(chatMsg);
+            });
+
+            stompClient.subscribe('/topic/room/' + roomId + '/signal', function(message) {
+                const signal = JSON.parse(message.body);
+                handleWebRTCSignal(signal);
             });
 
             if (onConnectCallback) onConnectCallback();
@@ -1795,4 +1808,193 @@ $(document).ready(function() {
         }
         return clk;
     }
+
+    // ----------------------------------------------------
+    // Opponent Text Chat & WebRTC Live Voice Call System
+    // ----------------------------------------------------
+    let rtcPeerConnection = null;
+    let localAudioStream = null;
+    let isVoiceActive = false;
+    let isMicMuted = false;
+
+    const rtcConfig = {
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+    };
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        return text.replace(/&/g, "&amp;")
+                   .replace(/</g, "&lt;")
+                   .replace(/>/g, "&gt;")
+                   .replace(/"/g, "&quot;")
+                   .replace(/'/g, "&#039;");
+    }
+
+    function appendChatMessage(msgData) {
+        const isMyMsg = (msgData.senderId === myPlayerId);
+        const bubbleCls = isMyMsg ? 'my-msg' : 'opponent-msg';
+        const senderLabel = isMyMsg ? 'You' : (msgData.senderName || 'Opponent');
+        const timeStr = msgData.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        const html = `
+            <div class="chat-bubble ${bubbleCls}">
+                <span class="chat-sender-name">${escapeHtml(senderLabel)} • ${timeStr}</span>
+                <span class="chat-text">${escapeHtml(msgData.message)}</span>
+            </div>
+        `;
+        const $log = $('#chat-messages-log');
+        $log.append(html);
+        $log.scrollTop($log[0].scrollHeight);
+    }
+
+    function sendChatMessage() {
+        const text = $('#chat-message-input').val().trim();
+        if (!text) return;
+
+        $('#chat-message-input').val('');
+
+        const msgObj = {
+            roomId: currentRoomId || 'LOCAL',
+            senderId: myPlayerId || 'PLAYER',
+            senderName: myAssignedColor === 'white' ? 'White Player' : 'Black Player',
+            message: text,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+
+        if (isMultiplayerOnline && stompClient && stompClient.connected && currentRoomId) {
+            stompClient.send('/app/room/' + currentRoomId + '/chat', {}, JSON.stringify(msgObj));
+        } else {
+            // Local 1v1 Mode Chat Fallback
+            appendChatMessage(msgObj);
+        }
+    }
+
+    $('#btn-send-chat').on('click', sendChatMessage);
+    $('#chat-message-input').on('keypress', function(e) {
+        if (e.which === 13) {
+            sendChatMessage();
+        }
+    });
+
+    // WebRTC Live Voice Calling Engine
+    function sendSignal(type, extraData) {
+        if (!isMultiplayerOnline || !stompClient || !stompClient.connected || !currentRoomId) return;
+        const payload = Object.assign({
+            roomId: currentRoomId,
+            senderId: myPlayerId,
+            type: type
+        }, extraData || {});
+        stompClient.send('/app/room/' + currentRoomId + '/signal', {}, JSON.stringify(payload));
+    }
+
+    function updateVoicePill(status, isOnline) {
+        $('#voice-status-text').text(status);
+        const $dot = $('#voice-dot');
+        if (isOnline) {
+            $dot.removeClass('offline').addClass('online');
+        } else {
+            $dot.removeClass('online').addClass('offline');
+        }
+    }
+
+    async function toggleVoiceCall() {
+        if (!isVoiceActive) {
+            try {
+                localAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                isVoiceActive = true;
+                isMicMuted = false;
+                
+                $('#btn-toggle-mic').html('<i class="fa-solid fa-microphone"></i> Mute Mic').removeClass('btn-secondary').addClass('btn-accent-gradient');
+                updateVoicePill('Voice Active', true);
+
+                createPeerConnection();
+
+                localAudioStream.getTracks().forEach(function(track) {
+                    rtcPeerConnection.addTrack(track, localAudioStream);
+                });
+
+                const offer = await rtcPeerConnection.createOffer();
+                await rtcPeerConnection.setLocalDescription(offer);
+                sendSignal('offer', { sdp: offer });
+
+            } catch (err) {
+                console.error("Microphone access denied or error:", err);
+                alert("Microphone access required for Live Voice Call.");
+                updateVoicePill('Mic Access Denied', false);
+            }
+        } else {
+            if (localAudioStream) {
+                isMicMuted = !isMicMuted;
+                localAudioStream.getAudioTracks().forEach(function(track) {
+                    track.enabled = !isMicMuted;
+                });
+
+                if (isMicMuted) {
+                    $('#btn-toggle-mic').html('<i class="fa-solid fa-microphone-slash"></i> Unmute Mic').removeClass('btn-accent-gradient').addClass('btn-warning');
+                    updateVoicePill('Mic Muted', true);
+                } else {
+                    $('#btn-toggle-mic').html('<i class="fa-solid fa-microphone"></i> Mute Mic').removeClass('btn-warning').addClass('btn-accent-gradient');
+                    updateVoicePill('Voice Active', true);
+                }
+                sendSignal('mic-status', { isMuted: isMicMuted });
+            }
+        }
+    }
+
+    function createPeerConnection() {
+        if (rtcPeerConnection) return;
+        rtcPeerConnection = new RTCPeerConnection(rtcConfig);
+
+        rtcPeerConnection.onicecandidate = function(event) {
+            if (event.candidate) {
+                sendSignal('candidate', { candidate: event.candidate });
+            }
+        };
+
+        rtcPeerConnection.ontrack = function(event) {
+            const remoteAudio = document.getElementById('remote-audio-player');
+            if (remoteAudio && event.streams[0]) {
+                remoteAudio.srcObject = event.streams[0];
+            }
+        };
+    }
+
+    async function handleWebRTCSignal(signal) {
+        if (!signal || signal.senderId === myPlayerId) return;
+
+        if (signal.type === 'offer') {
+            createPeerConnection();
+            if (localAudioStream) {
+                localAudioStream.getTracks().forEach(function(track) {
+                    rtcPeerConnection.addTrack(track, localAudioStream);
+                });
+            }
+            await rtcPeerConnection.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+            const answer = await rtcPeerConnection.createAnswer();
+            await rtcPeerConnection.setLocalDescription(answer);
+            sendSignal('answer', { sdp: answer });
+            updateVoicePill('Opponent Voice Connected', true);
+        } else if (signal.type === 'answer') {
+            if (rtcPeerConnection) {
+                await rtcPeerConnection.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+                updateVoicePill('Opponent Voice Connected', true);
+            }
+        } else if (signal.type === 'candidate') {
+            if (rtcPeerConnection && signal.candidate) {
+                try {
+                    await rtcPeerConnection.addIceCandidate(new RTCIceCandidate(signal.candidate));
+                } catch (e) {
+                    console.error("Error adding ICE candidate", e);
+                }
+            }
+        } else if (signal.type === 'mic-status') {
+            if (signal.isMuted) {
+                updateVoicePill('Opponent Muted', true);
+            } else {
+                updateVoicePill('Opponent Voice Connected', true);
+            }
+        }
+    }
+
+    $('#btn-toggle-mic').on('click', toggleVoiceCall);
 });

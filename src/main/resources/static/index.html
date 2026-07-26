@@ -19,7 +19,7 @@
     <!-- Chessboard.js CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
     <!-- Custom Premium Styles -->
-    <link rel="stylesheet" href="css/styles.css?v=15">
+    <link rel="stylesheet" href="css/styles.css?v=16">
 </head>
 
 <body>
@@ -486,6 +486,38 @@
                             </table>
                         </div>
                     </div>
+
+                    <!-- 1v1 Opponent Chat & Live Voice Call Panel -->
+                    <div class="panel-section chat-section" id="sidebar-chat-panel" style="display: none;">
+                        <h3 class="section-title">
+                            <i class="fa-solid fa-comments"></i> Opponent Chat &amp; Voice
+                        </h3>
+                        
+                        <!-- Live WebRTC Voice Call Bar -->
+                        <div class="voice-call-wrapper">
+                            <div class="voice-status" id="voice-status-pill">
+                                <span class="status-dot offline" id="voice-dot"></span>
+                                <span id="voice-status-text">Voice Offline</span>
+                            </div>
+                            <button id="btn-toggle-mic" class="btn btn-secondary btn-sm" title="Toggle Live Audio Call">
+                                <i class="fa-solid fa-microphone-slash"></i> Join Voice
+                            </button>
+                        </div>
+                        <audio id="remote-audio-player" autoplay style="display: none;"></audio>
+
+                        <!-- Opponent Text Chat Box -->
+                        <div class="chat-box-container">
+                            <div class="chat-messages-log" id="chat-messages-log">
+                                <div class="chat-system-msg">Connected to 1v1 Room. Say hi to your opponent!</div>
+                            </div>
+                            <div class="chat-input-row">
+                                <input type="text" id="chat-message-input" placeholder="Type a message..." maxlength="200" autocomplete="off" />
+                                <button id="btn-send-chat" class="btn btn-primary btn-icon" title="Send Message">
+                                    <i class="fa-solid fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </section>
             </main>
         </div>
@@ -537,7 +569,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
     <!-- Client Application Logic -->
-    <script src="js/app.js?v=17"></script>
+    <script src="js/app.js?v=18"></script>
 </body>
 
 </html>
