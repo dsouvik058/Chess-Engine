@@ -6,6 +6,7 @@ $(document).ready(function() {
 
     // State variables for Click-to-Move and Move Analysis
     let selectedSquare = null;
+    let showLegalMoves = false; // default OFF for assistance toggle
     let evalHistory = [30]; // default initial evaluation in centipawns (starting pos is slightly white favored)
     let moveClassifications = []; // list of classifications for each move in the game
     let isGameOver = false; // flag to block moves once game is complete
@@ -125,6 +126,7 @@ $(document).ready(function() {
     // View Switching Controllers
     function showWelcomeView() {
         stopClocks();
+        $('#pgn-textarea').val('');
         $('#game-view').fadeOut(200, function() {
             $('#welcome-view').fadeIn(200);
         });
@@ -234,6 +236,7 @@ $(document).ready(function() {
             $('#field-1v1-submode').hide();
             $('#field-online-rooms').hide();
             $('#btn-start-match').show();
+            $('#pgn-textarea').val('');
         }
     });
 
@@ -476,6 +479,7 @@ $(document).ready(function() {
         board.start();
         
         // Start bulk background analysis
+        $('#pgn-textarea').val('');
         startBulkAnalysis(analysisMoves);
     });
 
@@ -680,12 +684,37 @@ $(document).ready(function() {
 
     function highlightSquare(square) {
         $('#chess-board .square-' + square).addClass('highlight-selected');
+        if (showLegalMoves) {
+            highlightPossibleMoves(square);
+        }
     }
 
-    // Displays no longer visual hint targets
+    // Displays visual hint targets for legal moves
     function highlightPossibleMoves(square) {
-        // Disabled visually as requested
+        if (!game) return;
+        const moves = game.moves({ square: square, verbose: true });
+        for (let i = 0; i < moves.length; i++) {
+            const targetSquare = moves[i].to;
+            const $targetEl = $('#chess-board .square-' + targetSquare);
+            if (moves[i].captured) {
+                $targetEl.addClass('highlight-capture-hint');
+            } else {
+                $targetEl.addClass('highlight-hint');
+            }
+        }
     }
+
+    // Toggle handler for legal moves assistance switch
+    $('#toggle-show-legal-moves').on('change', function() {
+        showLegalMoves = $(this).is(':checked');
+        if (selectedSquare) {
+            if (showLegalMoves) {
+                highlightPossibleMoves(selectedSquare);
+            } else {
+                $('#chess-board .square-55d63').removeClass('highlight-hint highlight-capture-hint');
+            }
+        }
+    });
 
     // Capture click/tap on board squares
     $('#chess-board').on('click', '.square-55d63', function() {
@@ -1251,6 +1280,7 @@ $(document).ready(function() {
     function resetGame() {
         game.reset();
         board.start();
+        $('#pgn-textarea').val('');
         
         selectedSquare = null;
         evalHistory = [30];

@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dimag & Satranj!! - Grandmaster AI Chess Arena</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><path d='M12 52L16 44H48L52 52H12Z' fill='%2306b6d4'/><path d='M20 44L22 34H42L44 44H20Z' fill='%2306b6d4'/><path d='M24 34C24 26 21 24 21 18C21 13 25 10 32 10C39 10 43 13 43 18C43 24 40 26 40 34H24Z' fill='%2306b6d4'/></svg>">
     <meta name="description"
         content="Play against Stockfish 18 on Dimag & Satranj!! - Featuring real-time evaluation, 1v1 online rooms, and grandmaster move analytics. Designed by Souvik Das.">
     <!-- Google Fonts -->
@@ -18,7 +19,7 @@
     <!-- Chessboard.js CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
     <!-- Custom Premium Styles -->
-    <link rel="stylesheet" href="css/styles.css?v=13">
+    <link rel="stylesheet" href="css/styles.css?v=15">
 </head>
 
 <body>
@@ -48,7 +49,7 @@
                         </svg>
                     </div>
                     <h1 class="brand-title">Dimag &amp; Satranj!!</h1>
-                    <p class="welcome-subtitle">Grandmaster Artificial Intelligence &bull; Real-Time Battle Arena</p>
+                    <p class="welcome-subtitle">Let's begin your chess journey here.</p>
                     <div class="brand-badge">
                         <i class="fa-solid fa-bolt"></i> Stockfish 18 UCI Engine Active
                     </div>
@@ -372,6 +373,16 @@
 
                     <!-- Game Controls -->
                     <div class="panel-section controls-section" id="sidebar-controls-panel">
+                        <!-- Beginner Legal Move Assistance Toggle -->
+                        <div class="toggle-legal-moves-wrapper">
+                            <label for="toggle-show-legal-moves">
+                                <i class="fa-solid fa-lightbulb"></i> Show Legal Moves
+                            </label>
+                            <label class="switch-toggle">
+                                <input type="checkbox" id="toggle-show-legal-moves">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
                         <button id="btn-new-game" class="btn btn-primary" title="Start a new game">
                             <i class="fa-solid fa-plus-circle"></i> New Game
                         </button>
@@ -526,7 +537,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
     <!-- Client Application Logic -->
-    <script src="js/app.js?v=14"></script>
+    <script src="js/app.js?v=17"></script>
 </body>
 
 </html>
