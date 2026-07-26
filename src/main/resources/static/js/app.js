@@ -1291,6 +1291,9 @@ $(document).ready(function() {
     }
 
     function resetGame() {
+        if (typeof stopVoiceCall === 'function') {
+            stopVoiceCall();
+        }
         game.reset();
         board.start();
         $('#pgn-textarea').val('');
@@ -1315,6 +1318,9 @@ $(document).ready(function() {
 
     function showGameOverModal(title, message) {
         stopClocks();
+        if (typeof stopVoiceCall === 'function') {
+            stopVoiceCall();
+        }
         $('#modal-title').text(title);
         $('#modal-message').text(message);
         $('#copy-pgn-toast').hide(); // Hide toast initially
@@ -1816,9 +1822,14 @@ $(document).ready(function() {
     let localAudioStream = null;
     let isVoiceActive = false;
     let isMicMuted = false;
+    let iceCandidatesQueue = [];
 
     const rtcConfig = {
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' }
+        ]
     };
 
     function escapeHtml(text) {
@@ -1897,21 +1908,78 @@ $(document).ready(function() {
         }
     }
 
+    function addLocalTracksToPeer() {
+        if (!rtcPeerConnection || !localAudioStream) return;
+        const senders = rtcPeerConnection.getSenders();
+        localAudioStream.getTracks().forEach(function(track) {
+            const alreadyAdded = senders.some(function(s) { return s.track && s.track.id === track.id; });
+            if (!alreadyAdded) {
+                rtcPeerConnection.addTrack(track, localAudioStream);
+            }
+        });
+    }
+
+    async function processQueuedCandidates() {
+        if (!rtcPeerConnection || !rtcPeerConnection.remoteDescription || !rtcPeerConnection.remoteDescription.type) return;
+        while (iceCandidatesQueue.length > 0) {
+            const cand = iceCandidatesQueue.shift();
+            try {
+                await rtcPeerConnection.addIceCandidate(new RTCIceCandidate(cand));
+            } catch (e) {
+                console.error("Error adding queued ICE candidate:", e);
+            }
+        }
+    }
+
+    function createPeerConnection() {
+        if (rtcPeerConnection) return;
+        rtcPeerConnection = new RTCPeerConnection(rtcConfig);
+
+        rtcPeerConnection.onicecandidate = function(event) {
+            if (event.candidate) {
+                sendSignal('candidate', { candidate: event.candidate });
+            }
+        };
+
+        rtcPeerConnection.ontrack = function(event) {
+            const remoteAudio = document.getElementById('remote-audio-player');
+            if (remoteAudio && event.streams && event.streams[0]) {
+                remoteAudio.srcObject = event.streams[0];
+                remoteAudio.play().catch(function(err) {
+                    console.warn("Audio play prevented by browser policy (unlock on click):", err);
+                });
+            }
+        };
+
+        rtcPeerConnection.oniceconnectionstatechange = function() {
+            if (!rtcPeerConnection) return;
+            const state = rtcPeerConnection.iceConnectionState;
+            if (state === 'connected' || state === 'completed') {
+                updateVoicePill('Opponent Voice Connected', true);
+            } else if (state === 'failed' || state === 'disconnected') {
+                updateVoicePill('Voice Connection Lost', false);
+            } else if (state === 'checking') {
+                updateVoicePill('Connecting Voice...', true);
+            }
+        };
+    }
+
+    async function acquireLocalAudio() {
+        if (!localAudioStream) {
+            localAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            isVoiceActive = true;
+            isMicMuted = false;
+            $('#btn-toggle-mic').html('<i class="fa-solid fa-microphone"></i> Mute Mic').removeClass('btn-secondary').addClass('btn-accent-gradient');
+            updateVoicePill('Voice Active', true);
+        }
+    }
+
     async function toggleVoiceCall() {
         if (!isVoiceActive) {
             try {
-                localAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                isVoiceActive = true;
-                isMicMuted = false;
-                
-                $('#btn-toggle-mic').html('<i class="fa-solid fa-microphone"></i> Mute Mic').removeClass('btn-secondary').addClass('btn-accent-gradient');
-                updateVoicePill('Voice Active', true);
-
+                await acquireLocalAudio();
                 createPeerConnection();
-
-                localAudioStream.getTracks().forEach(function(track) {
-                    rtcPeerConnection.addTrack(track, localAudioStream);
-                });
+                addLocalTracksToPeer();
 
                 const offer = await rtcPeerConnection.createOffer();
                 await rtcPeerConnection.setLocalDescription(offer);
@@ -1941,50 +2009,47 @@ $(document).ready(function() {
         }
     }
 
-    function createPeerConnection() {
-        if (rtcPeerConnection) return;
-        rtcPeerConnection = new RTCPeerConnection(rtcConfig);
-
-        rtcPeerConnection.onicecandidate = function(event) {
-            if (event.candidate) {
-                sendSignal('candidate', { candidate: event.candidate });
-            }
-        };
-
-        rtcPeerConnection.ontrack = function(event) {
-            const remoteAudio = document.getElementById('remote-audio-player');
-            if (remoteAudio && event.streams[0]) {
-                remoteAudio.srcObject = event.streams[0];
-            }
-        };
-    }
-
     async function handleWebRTCSignal(signal) {
         if (!signal || signal.senderId === myPlayerId) return;
 
         if (signal.type === 'offer') {
             createPeerConnection();
-            if (localAudioStream) {
-                localAudioStream.getTracks().forEach(function(track) {
-                    rtcPeerConnection.addTrack(track, localAudioStream);
-                });
+            
+            // Try to auto-acquire mic on incoming call so 2-way audio works instantly
+            if (!localAudioStream) {
+                try {
+                    await acquireLocalAudio();
+                } catch (e) {
+                    console.warn("Could not auto-acquire mic on incoming offer (listening only):", e);
+                }
             }
+
+            addLocalTracksToPeer();
+
             await rtcPeerConnection.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+            await processQueuedCandidates();
+
             const answer = await rtcPeerConnection.createAnswer();
             await rtcPeerConnection.setLocalDescription(answer);
             sendSignal('answer', { sdp: answer });
             updateVoicePill('Opponent Voice Connected', true);
+
         } else if (signal.type === 'answer') {
             if (rtcPeerConnection) {
                 await rtcPeerConnection.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+                await processQueuedCandidates();
                 updateVoicePill('Opponent Voice Connected', true);
             }
         } else if (signal.type === 'candidate') {
             if (rtcPeerConnection && signal.candidate) {
-                try {
-                    await rtcPeerConnection.addIceCandidate(new RTCIceCandidate(signal.candidate));
-                } catch (e) {
-                    console.error("Error adding ICE candidate", e);
+                if (rtcPeerConnection.remoteDescription && rtcPeerConnection.remoteDescription.type) {
+                    try {
+                        await rtcPeerConnection.addIceCandidate(new RTCIceCandidate(signal.candidate));
+                    } catch (e) {
+                        console.error("Error adding ICE candidate:", e);
+                    }
+                } else {
+                    iceCandidatesQueue.push(signal.candidate);
                 }
             }
         } else if (signal.type === 'mic-status') {
@@ -1995,6 +2060,43 @@ $(document).ready(function() {
             }
         }
     }
+
+    function stopVoiceCall() {
+        if (localAudioStream) {
+            localAudioStream.getTracks().forEach(function(track) {
+                track.stop(); // Revoke mic hardware access completely
+            });
+            localAudioStream = null;
+        }
+        if (rtcPeerConnection) {
+            try {
+                rtcPeerConnection.close();
+            } catch (e) {}
+            rtcPeerConnection = null;
+        }
+        iceCandidatesQueue = [];
+        isVoiceActive = false;
+        isMicMuted = false;
+
+        const remoteAudio = document.getElementById('remote-audio-player');
+        if (remoteAudio) {
+            remoteAudio.srcObject = null;
+        }
+
+        $('#btn-toggle-mic').html('<i class="fa-solid fa-microphone-slash"></i> Join Voice')
+            .removeClass('btn-accent-gradient btn-warning').addClass('btn-secondary');
+        updateVoicePill('Voice Offline', false);
+    }
+
+    // Mobile / Browser Autoplay unlock on user interaction
+    $(document).on('click touchstart', function() {
+        const remoteAudio = document.getElementById('remote-audio-player');
+        if (remoteAudio && remoteAudio.srcObject && remoteAudio.paused) {
+            remoteAudio.play().catch(function() {
+                // Ignore autoplay unlock failures
+            });
+        }
+    });
 
     $('#btn-toggle-mic').on('click', toggleVoiceCall);
 });
