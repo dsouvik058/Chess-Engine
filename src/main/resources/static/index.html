@@ -1,48 +1,84 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stockfish Engine - Stockfish 18 UCI Chess Platform</title>
-    <meta name="description" content="Play against Stockfish 18, a chess engine capable of playing at a highly rated 3200 ELO. Includes real-time engine evaluation and analytics.">
+    <title>Dimag & Satranj!! - Grandmaster AI Chess Arena</title>
+    <meta name="description"
+        content="Play against Stockfish 18 on Dimag & Satranj!! - Featuring real-time evaluation, 1v1 online rooms, and grandmaster move analytics. Designed by Souvik Das.">
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Chessboard.js CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
     <!-- Custom Premium Styles -->
-    <link rel="stylesheet" href="css/styles.css?v=9">
+    <link rel="stylesheet" href="css/styles.css?v=13">
 </head>
+
 <body>
     <div class="app-container">
         <!-- Welcome Portal View -->
         <div id="welcome-view" class="welcome-container">
             <div class="welcome-panel glass-panel">
                 <div class="welcome-header">
-                    <i class="fa-solid fa-chess-knight welcome-logo"></i>
-                    <h2>Chess Arena</h2>
-                    <p class="welcome-subtitle">Designed by Souvik Das with Stockfish 18</p>
+                    <div class="brand-logo-wrapper">
+                        <svg class="brand-svg-logo" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                                <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stop-color="#06b6d4" />
+                                    <stop offset="50%" stop-color="#3b82f6" />
+                                    <stop offset="100%" stop-color="#8b5cf6" />
+                                </linearGradient>
+                                <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                                    <feGaussianBlur stdDeviation="3" result="blur" />
+                                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                                </filter>
+                            </defs>
+                            <path d="M12 52L16 44H48L52 52H12Z" fill="url(#logoGrad)" filter="url(#glow)"/>
+                            <path d="M20 44L22 34H42L44 44H20Z" fill="url(#logoGrad)" opacity="0.9"/>
+                            <path d="M24 34C24 26 21 24 21 18C21 13 25 10 32 10C39 10 43 13 43 18C43 24 40 26 40 34H24Z" fill="url(#logoGrad)"/>
+                            <circle cx="32" cy="7" r="3" fill="#67e8f9" filter="url(#glow)"/>
+                            <path d="M28 20H36M32 16V24" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                    <h1 class="brand-title">Dimag &amp; Satranj!!</h1>
+                    <p class="welcome-subtitle">Grandmaster Artificial Intelligence &bull; Real-Time Battle Arena</p>
+                    <div class="brand-badge">
+                        <i class="fa-solid fa-bolt"></i> Stockfish 18 UCI Engine Active
+                    </div>
                 </div>
 
                 <!-- Mode Selection -->
                 <div class="mode-selector-grid">
                     <div class="mode-card active" data-mode="computer">
-                        <i class="fa-solid fa-laptop-code mode-icon"></i>
-                        <h3>Play Computer</h3>
-                        <p>Challenge Stockfish AI with custom ratings and time controls.</p>
+                        <div class="card-icon-wrapper">
+                            <i class="fa-solid fa-robot mode-icon"></i>
+                        </div>
+                        <h3>Play vs Computer</h3>
+                        <p>Challenge Stockfish AI with custom ratings from 400 ELO to 3200 Grandmaster level.</p>
+                        <span class="mode-badge">AI Mode</span>
                     </div>
                     <div class="mode-card" data-mode="1v1">
-                        <i class="fa-solid fa-user-group mode-icon"></i>
+                        <div class="card-icon-wrapper">
+                            <i class="fa-solid fa-user-group mode-icon"></i>
+                        </div>
                         <h3>Custom 1 vs 1</h3>
-                        <p>Play locally with a friend on the same screen with full move validation.</p>
+                        <p>Play locally on the same screen or create an online multiplayer room for 2 devices.</p>
+                        <span class="mode-badge">Multiplayer</span>
                     </div>
                     <div class="mode-card" data-mode="analyze">
-                        <i class="fa-solid fa-magnifying-glass-chart mode-icon"></i>
-                        <h3>Analyze Game</h3>
-                        <p>Paste a chess PGN to review move ratings, blunders, and overall accuracy.</p>
+                        <div class="card-icon-wrapper">
+                            <i class="fa-solid fa-magnifying-glass-chart mode-icon"></i>
+                        </div>
+                        <h3>Analyze Game PGN</h3>
+                        <p>Paste your move history PGN to review move classifications, blunders, and accuracy.</p>
+                        <span class="mode-badge">Analytics</span>
                     </div>
                 </div>
 
@@ -51,11 +87,11 @@
                     <!-- Computer & 1v1 Setup -->
                     <div id="setup-match" class="setup-section active">
                         <h3 class="setup-title"><i class="fa-solid fa-sliders"></i> Match Configuration</h3>
-                        
+
                         <div class="setup-grid">
                             <!-- Time Format selector -->
                             <div class="setup-field">
-                                <label for="time-select">Time Format</label>
+                                <label for="time-select"><i class="fa-solid fa-clock"></i> Time Control</label>
                                 <select id="time-select" class="premium-select-box">
                                     <option value="unlimited">Unlimited (No Timer)</option>
                                     <option value="1">1 Minute (Bullet)</option>
@@ -68,61 +104,67 @@
 
                             <!-- Color choice (only for computer) -->
                             <div class="setup-field" id="field-color">
-                                <label for="color-select">Play As</label>
+                                <label for="color-select"><i class="fa-solid fa-chess-king"></i> Play As</label>
                                 <select id="color-select" class="premium-select-box">
-                                    <option value="white">White</option>
-                                    <option value="black">Black</option>
-                                    <option value="random">Random</option>
+                                    <option value="white">White (First Move)</option>
+                                    <option value="black">Black (Second Move)</option>
+                                    <option value="random">Random Choice</option>
                                 </select>
                             </div>
                         </div>
 
                         <!-- 1v1 Sub-Mode Selector (Only visible in 1v1 mode) -->
-                        <div id="field-1v1-submode" class="setup-field" style="display: none; margin-top: 15px; margin-bottom: 15px;">
-                            <label>Multiplayer Mode</label>
-                            <div class="submode-toggle-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px;">
-                                <button type="button" class="btn btn-secondary submode-btn active" data-submode="local" style="padding: 10px; font-size: 0.85rem; font-weight: 600;">
-                                    <i class="fa-solid fa-user-group"></i> Local (Same Device)
+                        <div id="field-1v1-submode" class="setup-field" style="display: none;">
+                            <label><i class="fa-solid fa-network-wired"></i> Multiplayer Mode</label>
+                            <div class="submode-toggle-group">
+                                <button type="button" class="btn btn-secondary submode-btn active" data-submode="local">
+                                    <i class="fa-solid fa-desktop"></i> Local (Same Device)
                                 </button>
-                                <button type="button" class="btn btn-secondary submode-btn" data-submode="online" style="padding: 10px; font-size: 0.85rem; font-weight: 600;">
-                                    <i class="fa-solid fa-wifi"></i> Online (2 Devices)
+                                <button type="button" class="btn btn-secondary submode-btn" data-submode="online">
+                                    <i class="fa-solid fa-wifi"></i> Online Room (2 Devices)
                                 </button>
                             </div>
                         </div>
 
                         <!-- Online Room Options (Only when submode=online) -->
-                        <div id="field-online-rooms" style="display: none; flex-direction: column; gap: 15px; margin-bottom: 20px;">
-                            <div class="online-card-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div id="field-online-rooms" style="display: none;">
+                            <div class="online-card-grid">
                                 <!-- Create Room Box -->
-                                <div class="online-card glass-panel" style="padding: 16px; border-radius: 12px;">
-                                    <h4 style="font-size: 0.95rem; margin-bottom: 10px; color: var(--accent-primary); font-weight: 700;"><i class="fa-solid fa-plus-circle"></i> Create Game Room</h4>
-                                    <div class="setup-field" style="margin-bottom: 10px;">
-                                        <label for="create-room-color" style="font-size: 0.8rem;">Host Color</label>
-                                        <select id="create-room-color" class="premium-select-box" style="padding: 8px; font-size: 0.85rem;">
+                                <div class="online-card glass-panel">
+                                    <h4>
+                                        <i class="fa-solid fa-plus-circle"></i> Create Room
+                                    </h4>
+                                    <div class="setup-field">
+                                        <label for="create-room-color">Host Color</label>
+                                        <select id="create-room-color" class="premium-select-box">
                                             <option value="white">White</option>
                                             <option value="black">Black</option>
                                             <option value="random">Random</option>
                                         </select>
                                     </div>
-                                    <button id="btn-create-room" class="btn btn-primary" style="width: 100%; padding: 10px; font-size: 0.85rem;">
+                                    <button id="btn-create-room" class="btn btn-primary">
                                         <i class="fa-solid fa-key"></i> Generate Code
                                     </button>
-                                    <div id="created-room-box" style="display: none; margin-top: 12px; text-align: center; background: rgba(6, 182, 212, 0.1); padding: 10px; border-radius: 8px; border: 1px solid rgba(6, 182, 212, 0.3);">
-                                        <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase;">Share Code With Friend:</div>
-                                        <div id="created-room-code" style="font-size: 1.3rem; font-weight: 800; color: var(--accent-primary); letter-spacing: 2px; margin: 4px 0;">ROOM-XXXX</div>
-                                        <div id="room-waiting-pulse" style="font-size: 0.75rem; color: #eab308; font-weight: 600;"><i class="fa-solid fa-spinner fa-spin"></i> Waiting for 2nd device to join...</div>
+                                    <div id="created-room-box" style="display: none;">
+                                        <div class="room-label">Share Code With Opponent:</div>
+                                        <div id="created-room-code" class="room-code-display">ROOM-XXXX</div>
+                                        <div id="room-waiting-pulse">
+                                            <i class="fa-solid fa-spinner fa-spin"></i> Waiting for opponent to join...
+                                        </div>
                                     </div>
                                 </div>
 
                                 <!-- Join Room Box -->
-                                <div class="online-card glass-panel" style="padding: 16px; border-radius: 12px;">
-                                    <h4 style="font-size: 0.95rem; margin-bottom: 10px; color: var(--accent-green); font-weight: 700;"><i class="fa-solid fa-right-to-bracket"></i> Join Game Room</h4>
-                                    <div class="setup-field" style="margin-bottom: 10px;">
-                                        <label for="join-room-input" style="font-size: 0.8rem;">Enter Room Code</label>
-                                        <input type="text" id="join-room-input" placeholder="e.g. ROOM-A4B2" class="premium-select-box" style="text-transform: uppercase; padding: 8px; font-weight: 700; letter-spacing: 1px; font-size: 0.9rem;" />
+                                <div class="online-card glass-panel">
+                                    <h4>
+                                        <i class="fa-solid fa-right-to-bracket"></i> Join Room
+                                    </h4>
+                                    <div class="setup-field">
+                                        <label for="join-room-input">Room Code</label>
+                                        <input type="text" id="join-room-input" placeholder="e.g. ROOM-A4B2" class="premium-select-box" />
                                     </div>
-                                    <button id="btn-join-room" class="btn btn-accent-gradient" style="width: 100%; padding: 10px; font-size: 0.85rem;">
-                                        <i class="fa-solid fa-gamepad"></i> Join Match
+                                    <button id="btn-join-room" class="btn btn-accent-gradient">
+                                        <i class="fa-solid fa-gamepad"></i> Join Game
                                     </button>
                                 </div>
                             </div>
@@ -131,26 +173,29 @@
                         <!-- Computer ELO Strength (Only for Computer mode) -->
                         <div class="setup-field slider-field" id="field-elo">
                             <div class="slider-label-row">
-                                <label for="portal-elo-slider">Engine Strength (ELO)</label>
+                                <label for="portal-elo-slider"><i class="fa-solid fa-brain"></i> Stockfish Strength (ELO)</label>
                                 <span class="value-display" id="portal-elo-value">3200 ELO</span>
                             </div>
-                            <input type="range" id="portal-elo-slider" min="400" max="3200" step="50" value="3200" class="premium-slider">
+                            <input type="range" id="portal-elo-slider" min="400" max="3200" step="50" value="3200"
+                                class="premium-slider">
                             <div class="elo-description" id="portal-elo-desc">Grandmaster (Stockfish Maximum Strength)</div>
                         </div>
 
                         <button id="btn-start-match" class="btn btn-primary btn-large">
-                            <i class="fa-solid fa-play"></i> Start Match
+                            <i class="fa-solid fa-play"></i> Launch Match
                         </button>
                     </div>
 
                     <!-- PGN Analyzer Setup -->
                     <div id="setup-analyze" class="setup-section">
-                        <h3 class="setup-title"><i class="fa-solid fa-file-import"></i> Paste Game PGN</h3>
+                        <h3 class="setup-title"><i class="fa-solid fa-file-import"></i> Paste Game PGN Notation</h3>
                         <div class="pgn-input-wrapper">
-                            <textarea id="pgn-textarea" placeholder="Paste your PGN string here (e.g. 1. e4 e5 2. Nf3 Nc6 3. Bc4 ...)..." class="premium-textarea"></textarea>
+                            <textarea id="pgn-textarea"
+                                placeholder="Paste your PGN string here (e.g. 1. e4 e5 2. Nf3 Nc6 3. Bc4 ...)..."
+                                class="premium-textarea"></textarea>
                         </div>
                         <button id="btn-load-pgn" class="btn btn-primary btn-large">
-                            <i class="fa-solid fa-chart-line"></i> Load & Analyze Game
+                            <i class="fa-solid fa-chart-line"></i> Load &amp; Analyze Game
                         </button>
                     </div>
                 </div>
@@ -162,10 +207,21 @@
             <!-- Main Dashboard Header -->
             <header class="app-header">
                 <div class="logo-area">
-                    <i class="fa-solid fa-chess-knight logo-icon"></i>
+                    <svg class="header-svg-logo" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 52L16 44H48L52 52H12Z" fill="url(#headerLogoGrad)"/>
+                        <path d="M20 44L22 34H42L44 44H20Z" fill="url(#headerLogoGrad)" opacity="0.9"/>
+                        <path d="M24 34C24 26 21 24 21 18C21 13 25 10 32 10C39 10 43 13 43 18C43 24 40 26 40 34H24Z" fill="url(#headerLogoGrad)"/>
+                        <circle cx="32" cy="7" r="3" fill="#67e8f9"/>
+                        <defs>
+                            <linearGradient id="headerLogoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#06b6d4" />
+                                <stop offset="100%" stop-color="#8b5cf6" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
                     <div class="logo-text">
-                        <h1>Chess Engine By Souvik</h1>
-                        <span class="logo-subtitle">with the help of stockfish</span>
+                        <h1>Dimag &amp; Satranj!!</h1>
+                        <span class="logo-subtitle">Grandmaster Battle Arena</span>
                     </div>
                 </div>
                 <div class="header-actions">
@@ -174,21 +230,23 @@
                         <span class="status-label">Engine Ready (3200 ELO)</span>
                     </div>
                     <button id="btn-main-menu" class="btn btn-secondary" title="Return to Main Menu">
-                        <i class="fa-solid fa-home"></i> Menu
+                        <i class="fa-solid fa-house"></i> Main Menu
                     </button>
                 </div>
             </header>
 
             <!-- Main Content Area -->
             <main class="dashboard-grid">
-                
+
                 <!-- Left Side: Evaluation Bar and Chessboard -->
                 <section class="game-area-card glass-panel">
                     <div class="board-container">
                         <!-- Opponent Row -->
                         <div class="player-info-row opponent" id="row-opponent">
                             <div class="player-tag">
-                                <i class="fa-solid fa-robot" id="opponent-icon"></i>
+                                <div class="avatar-box">
+                                    <i class="fa-solid fa-robot" id="opponent-icon"></i>
+                                </div>
                                 <span class="player-name-text" id="opponent-name">Computer</span>
                             </div>
                             <div class="chess-clock" id="clock-black">--:--</div>
@@ -209,7 +267,9 @@
                         <!-- Player Row -->
                         <div class="player-info-row player" id="row-player">
                             <div class="player-tag">
-                                <i class="fa-solid fa-user" id="player-icon"></i>
+                                <div class="avatar-box player-avatar">
+                                    <i class="fa-solid fa-user" id="player-icon"></i>
+                                </div>
                                 <span class="player-name-text" id="player-name">Player</span>
                             </div>
                             <div class="chess-clock" id="clock-white">--:--</div>
@@ -219,7 +279,7 @@
 
                 <!-- Right Side: Sidebar Analytics and Controls -->
                 <section class="sidebar-card glass-panel">
-                    
+
                     <!-- Game Accuracy Dashboard (For Analysis mode only) -->
                     <div class="panel-section" id="game-accuracy-panel" style="display: none;">
                         <h3 class="section-title"><i class="fa-solid fa-chart-pie"></i> Game Accuracy</h3>
@@ -228,8 +288,11 @@
                                 <span class="acc-label">White</span>
                                 <div class="acc-circle-container">
                                     <svg class="progress-ring" width="70" height="70">
-                                        <circle class="progress-ring__background" stroke="rgba(255,255,255,0.05)" stroke-width="5" fill="transparent" r="30" cx="35" cy="35"/>
-                                        <circle class="progress-ring__circle" id="acc-ring-white" stroke="var(--accent-primary)" stroke-width="5" fill="transparent" r="30" cx="35" cy="35" stroke-dasharray="188.5" stroke-dashoffset="188.5"/>
+                                        <circle class="progress-ring__background" stroke="rgba(255,255,255,0.05)"
+                                            stroke-width="5" fill="transparent" r="30" cx="35" cy="35" />
+                                        <circle class="progress-ring__circle" id="acc-ring-white"
+                                            stroke="var(--accent-cyan)" stroke-width="5" fill="transparent" r="30"
+                                            cx="35" cy="35" stroke-dasharray="188.5" stroke-dashoffset="188.5" />
                                     </svg>
                                     <span class="acc-value" id="acc-val-white">--%</span>
                                 </div>
@@ -238,8 +301,11 @@
                                 <span class="acc-label">Black</span>
                                 <div class="acc-circle-container">
                                     <svg class="progress-ring" width="70" height="70">
-                                        <circle class="progress-ring__background" stroke="rgba(255,255,255,0.05)" stroke-width="5" fill="transparent" r="30" cx="35" cy="35"/>
-                                        <circle class="progress-ring__circle" id="acc-ring-black" stroke="var(--accent-pink)" stroke-width="5" fill="transparent" r="30" cx="35" cy="35" stroke-dasharray="188.5" stroke-dashoffset="188.5"/>
+                                        <circle class="progress-ring__background" stroke="rgba(255,255,255,0.05)"
+                                            stroke-width="5" fill="transparent" r="30" cx="35" cy="35" />
+                                        <circle class="progress-ring__circle" id="acc-ring-black"
+                                            stroke="var(--accent-pink)" stroke-width="5" fill="transparent" r="30"
+                                            cx="35" cy="35" stroke-dasharray="188.5" stroke-dashoffset="188.5" />
                                     </svg>
                                     <span class="acc-value" id="acc-val-black">--%</span>
                                 </div>
@@ -255,7 +321,8 @@
                                 <label for="elo-slider">Engine Strength (ELO)</label>
                                 <span class="value-display" id="elo-value">3200 ELO</span>
                             </div>
-                            <input type="range" id="elo-slider" min="400" max="3200" step="50" value="3200" class="premium-slider">
+                            <input type="range" id="elo-slider" min="400" max="3200" step="50" value="3200"
+                                class="premium-slider">
                             <div class="elo-description" id="elo-desc">Grandmaster (Stockfish Maximum Strength)</div>
                         </div>
                     </div>
@@ -317,14 +384,16 @@
                         <button id="btn-resign" class="btn btn-warning" title="Resign current match">
                             <i class="fa-solid fa-flag"></i> Resign
                         </button>
-                        <button id="btn-sidebar-analyze" class="btn btn-accent-gradient" style="display: none; width: 100%; grid-column: span 2; margin-top: 4px;" title="Analyze completed game">
+                        <button id="btn-sidebar-analyze" class="btn btn-accent-gradient"
+                            style="display: none; width: 100%; grid-column: span 2; margin-top: 4px;"
+                            title="Analyze completed game">
                             <i class="fa-solid fa-magnifying-glass-chart"></i> Analyze Game
                         </button>
                     </div>
 
                     <!-- Game Review / Move Analysis -->
                     <div class="panel-section analysis-summary-section" id="sidebar-review-panel">
-                        <h3 class="section-title"><i class="fa-solid fa-chart-pie"></i> Game Review</h3>
+                        <h3 class="section-title"><i class="fa-solid fa-chart-pie"></i> Move Classification</h3>
                         <div class="analysis-grid">
                             <div class="analysis-header-row">
                                 <span>Category</span>
@@ -332,47 +401,56 @@
                                 <span>Black</span>
                             </div>
                             <div class="analysis-stat-row">
-                                <span class="analysis-badge brilliant" title="Brilliant!!"><i class="fa-solid fa-bolt"></i> Brilliant</span>
+                                <span class="analysis-badge brilliant" title="Brilliant!!"><i
+                                        class="fa-solid fa-bolt"></i> Brilliant</span>
                                 <span class="analysis-count white" id="cnt-w-brilliant">0</span>
                                 <span class="analysis-count black" id="cnt-b-brilliant">0</span>
                             </div>
                             <div class="analysis-stat-row">
-                                <span class="analysis-badge great" title="Great Move!"><i class="fa-solid fa-award"></i> Great</span>
+                                <span class="analysis-badge great" title="Great Move!"><i class="fa-solid fa-award"></i>
+                                    Great</span>
                                 <span class="analysis-count white" id="cnt-w-great">0</span>
                                 <span class="analysis-count black" id="cnt-b-great">0</span>
                             </div>
                             <div class="analysis-stat-row">
-                                <span class="analysis-badge best" title="Best Move"><i class="fa-solid fa-star"></i> Best</span>
+                                <span class="analysis-badge best" title="Best Move"><i class="fa-solid fa-star"></i>
+                                    Best</span>
                                 <span class="analysis-count white" id="cnt-w-best">0</span>
                                 <span class="analysis-count black" id="cnt-b-best">0</span>
                             </div>
                             <div class="analysis-stat-row">
-                                <span class="analysis-badge excellent" title="Excellent"><i class="fa-solid fa-thumbs-up"></i> Excellent</span>
+                                <span class="analysis-badge excellent" title="Excellent"><i
+                                        class="fa-solid fa-thumbs-up"></i> Excellent</span>
                                 <span class="analysis-count white" id="cnt-w-excellent">0</span>
                                 <span class="analysis-count black" id="cnt-b-excellent">0</span>
                             </div>
                             <div class="analysis-stat-row">
-                                <span class="analysis-badge good" title="Good"><i class="fa-solid fa-check"></i> Good</span>
+                                <span class="analysis-badge good" title="Good"><i class="fa-solid fa-check"></i>
+                                    Good</span>
                                 <span class="analysis-count white" id="cnt-w-good">0</span>
                                 <span class="analysis-count black" id="cnt-b-good">0</span>
                             </div>
                             <div class="analysis-stat-row">
-                                <span class="analysis-badge book" title="Book Move"><i class="fa-solid fa-book"></i> Book</span>
+                                <span class="analysis-badge book" title="Book Move"><i class="fa-solid fa-book"></i>
+                                    Book</span>
                                 <span class="analysis-count white" id="cnt-w-book">0</span>
                                 <span class="analysis-count black" id="cnt-b-book">0</span>
                             </div>
                             <div class="analysis-stat-row">
-                                <span class="analysis-badge inaccuracy" title="Inaccuracy"><i class="fa-solid fa-circle-question"></i> Inaccuracy</span>
+                                <span class="analysis-badge inaccuracy" title="Inaccuracy"><i
+                                        class="fa-solid fa-circle-question"></i> Inaccuracy</span>
                                 <span class="analysis-count white" id="cnt-w-inaccuracy">0</span>
                                 <span class="analysis-count black" id="cnt-b-inaccuracy">0</span>
                             </div>
                             <div class="analysis-stat-row">
-                                <span class="analysis-badge mistake" title="Mistake"><i class="fa-solid fa-circle-question"></i> Mistake</span>
+                                <span class="analysis-badge mistake" title="Mistake"><i
+                                        class="fa-solid fa-circle-exclamation"></i> Mistake</span>
                                 <span class="analysis-count white" id="cnt-w-mistake">0</span>
                                 <span class="analysis-count black" id="cnt-b-mistake">0</span>
                             </div>
                             <div class="analysis-stat-row">
-                                <span class="analysis-badge blunder" title="Blunder"><i class="fa-solid fa-circle-xmark"></i> Blunder</span>
+                                <span class="analysis-badge blunder" title="Blunder"><i
+                                        class="fa-solid fa-circle-xmark"></i> Blunder</span>
                                 <span class="analysis-count white" id="cnt-w-blunder">0</span>
                                 <span class="analysis-count black" id="cnt-b-blunder">0</span>
                             </div>
@@ -381,7 +459,7 @@
 
                     <!-- Move History -->
                     <div class="panel-section history-section">
-                        <h3 class="section-title"><i class="fa-solid fa-list-ol"></i> Move Log</h3>
+                        <h3 class="section-title"><i class="fa-solid fa-list-ol"></i> Move Notation Log</h3>
                         <div class="move-log-container" id="move-log">
                             <table class="move-log-table">
                                 <thead>
@@ -400,6 +478,15 @@
                 </section>
             </main>
         </div>
+
+        <!-- Global Site Footer -->
+        <footer class="app-footer">
+            <div class="footer-content">
+                <div class="footer-brand">Dimag &amp; Satranj!!</div>
+                <div class="footer-credit">Designed by <span class="designer-name">Souvik Das</span></div>
+                <div class="footer-sub">Stockfish 18 UCI Engine Platform</div>
+            </div>
+        </footer>
     </div>
 
     <!-- Game Over Custom Modal -->
@@ -408,16 +495,16 @@
             <i class="fa-solid fa-trophy modal-icon"></i>
             <h2 id="modal-title">Game Over</h2>
             <p id="modal-message">White wins by checkmate</p>
-            <div class="modal-pgn-wrapper" style="margin-bottom: 20px;">
-                <div style="display: flex; flex-direction: column; gap: 10px; width: 100%;">
-                    <button id="btn-modal-analyze" class="btn btn-accent-gradient" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 0.95rem; padding: 12px; font-weight: 600;">
+            <div class="modal-pgn-wrapper">
+                <div class="modal-btn-stack">
+                    <button id="btn-modal-analyze" class="btn btn-accent-gradient">
                         <i class="fa-solid fa-magnifying-glass-chart"></i> Analyze Game
                     </button>
-                    <button id="btn-modal-copy-pgn" class="btn btn-secondary" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 0.85rem; padding: 10px;">
+                    <button id="btn-modal-copy-pgn" class="btn btn-secondary">
                         <i class="fa-solid fa-copy"></i> Copy PGN
                     </button>
                 </div>
-                <div id="copy-pgn-toast" style="display: none; font-size: 0.8rem; color: var(--accent-green); margin-top: 8px; font-weight: 500;">
+                <div id="copy-pgn-toast">
                     <i class="fa-solid fa-check-circle"></i> PGN copied to clipboard!
                 </div>
             </div>
@@ -441,4 +528,5 @@
     <!-- Client Application Logic -->
     <script src="js/app.js?v=14"></script>
 </body>
+
 </html>
