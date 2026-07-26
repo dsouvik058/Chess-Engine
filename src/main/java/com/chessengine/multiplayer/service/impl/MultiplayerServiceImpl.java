@@ -76,6 +76,15 @@ public class MultiplayerServiceImpl implements MultiplayerService {
             throw new EngineException("Game room has already finished.");
         }
 
+        if (request.getPlayerId() != null && !request.getPlayerId().trim().isEmpty()) {
+            String requestingPlayerId = request.getPlayerId().trim();
+            if (requestingPlayerId.equalsIgnoreCase(room.getHostPlayerId()) ||
+                requestingPlayerId.equalsIgnoreCase(room.getWhitePlayerId()) ||
+                requestingPlayerId.equalsIgnoreCase(room.getBlackPlayerId())) {
+                throw new EngineException("You cannot join your own room from the same browser or session.");
+            }
+        }
+
         String guestId = UUID.randomUUID().toString();
         String guestColor;
 

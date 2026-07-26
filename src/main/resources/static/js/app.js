@@ -315,6 +315,10 @@ $(document).ready(function() {
         const timeVal = $('#time-select').val();
         const timeControl = timeVal === 'unlimited' ? 0 : parseInt(timeVal);
 
+        // Reset previous room code UI before generating a new one
+        $('#created-room-box').hide();
+        $('#created-room-code').text('');
+
         $.ajax({
             url: '/api/multiplayer/create',
             type: 'POST',
@@ -342,9 +346,14 @@ $(document).ready(function() {
 
     // Join Online Room Handler
     $('#btn-join-room').on('click', function() {
-        const roomId = $('#join-room-input').val().trim();
+        const roomId = $('#join-room-input').val().trim().toUpperCase();
         if (!roomId) {
             alert("Please enter a valid Room Code (e.g. ROOM-A4B2).");
+            return;
+        }
+
+        if (currentRoomId && roomId === currentRoomId.toUpperCase()) {
+            alert("You cannot join your own room from the same browser session!");
             return;
         }
 
@@ -352,12 +361,18 @@ $(document).ready(function() {
             url: '/api/multiplayer/join',
             type: 'POST',
             contentType: 'application/json',
-            data: JSON.stringify({ roomId: roomId }),
+            data: JSON.stringify({
+                roomId: roomId,
+                playerId: myPlayerId
+            }),
             success: function(response) {
                 currentRoomId = response.room.roomId;
                 myPlayerId = response.playerId;
                 myAssignedColor = response.playerColor;
                 isMultiplayerOnline = true;
+
+                // Clear join input after successfully joining
+                $('#join-room-input').val('');
 
                 connectWebSocket(currentRoomId, function() {
                     startOnlineMatch(response.room);
@@ -411,6 +426,9 @@ $(document).ready(function() {
             if (data.status === 'IN_PROGRESS' && $('#game-view').is(':hidden')) {
                 startOnlineMatch(data);
             } else if (data.status === 'FINISHED') {
+                if (typeof stopVoiceCall === 'function') {
+                    stopVoiceCall();
+                }
                 let title = "Game Over";
                 let message = data.finishReason || "";
                 if (data.winnerColor === myAssignedColor) {
@@ -448,6 +466,11 @@ $(document).ready(function() {
         showGameView('1v1');
         resetGame();
         isMultiplayerOnline = true;
+
+        // Expire & clear room ID elements from room creation/join panels so stale code doesn't linger
+        $('#created-room-box').hide();
+        $('#created-room-code').text('');
+        $('#join-room-input').val('');
 
         board.orientation(myAssignedColor);
 
@@ -2058,10 +2081,15 @@ $(document).ready(function() {
             } else {
                 updateVoicePill('Opponent Voice Connected', true);
             }
+        } else if (signal.type === 'voice-ended') {
+            stopVoiceCall(true);
         }
     }
 
-    function stopVoiceCall() {
+    function stopVoiceCall(skipSignal) {
+        if (!skipSignal && isMultiplayerOnline && stompClient && stompClient.connected && currentRoomId) {
+            sendSignal('voice-ended', {});
+        }
         if (localAudioStream) {
             localAudioStream.getTracks().forEach(function(track) {
                 track.stop(); // Revoke mic hardware access completely

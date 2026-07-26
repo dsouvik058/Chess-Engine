@@ -11,4 +11,5 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class JoinRoomRequestDTO {
     private String roomId;
+    private String playerId;
 }
