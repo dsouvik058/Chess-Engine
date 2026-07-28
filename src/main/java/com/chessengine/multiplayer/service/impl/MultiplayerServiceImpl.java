@@ -33,17 +33,25 @@ public class MultiplayerServiceImpl implements MultiplayerService {
             hostColor = random.nextBoolean() ? "white" : "black";
         }
 
-        int timeControl = request.getTimeControlMinutes() != null ? request.getTimeControlMinutes() : 10;
-        long timeControlMs = timeControl * 60 * 1000L;
+        double timeControl = request.getTimeControlMinutes() != null ? request.getTimeControlMinutes() : 10.0;
+        long timeControlMs = Math.round(timeControl * 60 * 1000L);
 
         String whitePlayerId = "white".equals(hostColor) ? hostId : null;
         String blackPlayerId = "black".equals(hostColor) ? hostId : null;
+        String name = (request.getPlayerName() != null && !request.getPlayerName().trim().isEmpty()) 
+                ? request.getPlayerName().trim() 
+                : "Host";
+
+        String whitePlayerName = "white".equals(hostColor) ? name : null;
+        String blackPlayerName = "black".equals(hostColor) ? name : null;
 
         GameRoom room = GameRoom.builder()
                 .roomId(roomId)
                 .hostPlayerId(hostId)
                 .whitePlayerId(whitePlayerId)
                 .blackPlayerId(blackPlayerId)
+                .whitePlayerName(whitePlayerName)
+                .blackPlayerName(blackPlayerName)
                 .currentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
                 .moveHistory(new ArrayList<>())
                 .timeControlMinutes(timeControl)
@@ -53,7 +61,7 @@ public class MultiplayerServiceImpl implements MultiplayerService {
                 .build();
 
         activeRooms.put(roomId, room);
-        log.info("Multiplayer room created: {} by host {} (Color: {})", roomId, hostId, hostColor);
+        log.info("Multiplayer room created: {} by host {} ({}) (Color: {})", roomId, hostId, name, hostColor);
 
         return RoomResponseDTO.builder()
                 .room(room)
@@ -87,12 +95,17 @@ public class MultiplayerServiceImpl implements MultiplayerService {
 
         String guestId = UUID.randomUUID().toString();
         String guestColor;
+        String name = (request.getPlayerName() != null && !request.getPlayerName().trim().isEmpty()) 
+                ? request.getPlayerName().trim() 
+                : "Guest";
 
         if (room.getWhitePlayerId() == null) {
             room.setWhitePlayerId(guestId);
+            room.setWhitePlayerName(name);
             guestColor = "white";
         } else if (room.getBlackPlayerId() == null) {
             room.setBlackPlayerId(guestId);
+            room.setBlackPlayerName(name);
             guestColor = "black";
         } else {
             throw new EngineException("Game room is full.");
@@ -101,7 +114,7 @@ public class MultiplayerServiceImpl implements MultiplayerService {
         room.setGuestPlayerId(guestId);
         room.setStatus("IN_PROGRESS");
 
-        log.info("Player {} joined room {} as {}", guestId, roomId, guestColor);
+        log.info("Player {} ({}) joined room {} as {}", guestId, name, roomId, guestColor);
 
         return RoomResponseDTO.builder()
                 .room(room)
@@ -112,69 +125,44 @@ public class MultiplayerServiceImpl implements MultiplayerService {
     }
 
     @Override
+    public GameRoom getRoom(String roomId) {
+        return activeRooms.get(roomId);
+    }
+
+    @Override
     public GameRoom processMove(MultiplayerMoveDTO move) {
         GameRoom room = activeRooms.get(move.getRoomId());
         if (room == null) {
-            throw new EngineException("Room not found: " + move.getRoomId());
+            throw new EngineException("Room not found");
         }
-
-        if (move.getFen() != null) {
-            room.setCurrentFen(move.getFen());
-        }
+        room.setCurrentFen(move.getFen());
         if (move.getSan() != null) {
             room.getMoveHistory().add(move.getSan());
         }
-
-        if (move.getWhiteTimeMs() != null) {
-            room.setWhiteTimeMs(move.getWhiteTimeMs());
-        }
-        if (move.getBlackTimeMs() != null) {
-            room.setBlackTimeMs(move.getBlackTimeMs());
-        }
-
-        if (Boolean.TRUE.equals(move.getIsCheckmate())) {
-            room.setStatus("FINISHED");
-            // Determine winner based on FEN side to move (if side to move is 'w', black won)
-            String[] parts = move.getFen().split("\\s+");
-            String turn = parts.length > 1 ? parts[1] : "w";
-            room.setWinnerColor("w".equals(turn) ? "black" : "white");
-            room.setFinishReason("Checkmate");
-        } else if (Boolean.TRUE.equals(move.getIsDraw())) {
-            room.setStatus("FINISHED");
-            room.setWinnerColor("draw");
-            room.setFinishReason("Draw");
-        }
-
         return room;
     }
 
     @Override
-    public GameRoom resignMatch(String roomId, String playerId) {
+    public GameRoom resignMatch(String roomId, String resigningPlayerId) {
         GameRoom room = activeRooms.get(roomId);
         if (room == null) {
-            throw new EngineException("Room not found: " + roomId);
+            throw new EngineException("Room not found");
         }
-
         room.setStatus("FINISHED");
-        if (playerId.equals(room.getWhitePlayerId())) {
-            room.setWinnerColor("black");
-        } else {
-            room.setWinnerColor("white");
-        }
         room.setFinishReason("Resignation");
+        if (resigningPlayerId.equalsIgnoreCase(room.getWhitePlayerId())) {
+            room.setWinnerColor("b");
+        } else {
+            room.setWinnerColor("w");
+        }
         return room;
-    }
-
-    @Override
-    public GameRoom getRoom(String roomId) {
-        return activeRooms.get(roomId != null ? roomId.toUpperCase().trim() : "");
     }
 
     private String generateRoomId() {
-        String chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+        String characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         StringBuilder sb = new StringBuilder("ROOM-");
         for (int i = 0; i < 4; i++) {
-            sb.append(chars.charAt(random.nextInt(chars.length())));
+            sb.append(characters.charAt(random.nextInt(characters.length())));
         }
         return sb.toString();
     }

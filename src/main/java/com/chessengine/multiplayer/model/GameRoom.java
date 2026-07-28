@@ -20,12 +20,15 @@ public class GameRoom {
     private String whitePlayerId;
     private String blackPlayerId;
 
+    private String whitePlayerName;
+    private String blackPlayerName;
+
     private String currentFen;
     
     @Builder.Default
     private List<String> moveHistory = new ArrayList<>();
 
-    private int timeControlMinutes;
+    private double timeControlMinutes;
     private long whiteTimeMs;
     private long blackTimeMs;
 
