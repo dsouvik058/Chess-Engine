@@ -408,11 +408,6 @@ $(document).ready(function() {
                 appendChatMessage(chatMsg);
             });
 
-            stompClient.subscribe('/topic/room/' + roomId + '/signal', function(message) {
-                const signal = JSON.parse(message.body);
-                handleWebRTCSignal(signal);
-            });
-
             if (onConnectCallback) onConnectCallback();
         }, function(error) {
             console.error('WebSocket connection error:', error);
@@ -426,9 +421,6 @@ $(document).ready(function() {
             if (data.status === 'IN_PROGRESS' && $('#game-view').is(':hidden')) {
                 startOnlineMatch(data);
             } else if (data.status === 'FINISHED') {
-                if (typeof stopVoiceCall === 'function') {
-                    stopVoiceCall();
-                }
                 let title = "Game Over";
                 let message = data.finishReason || "";
                 if (data.winnerColor === myAssignedColor) {
@@ -1314,9 +1306,6 @@ $(document).ready(function() {
     }
 
     function resetGame() {
-        if (typeof stopVoiceCall === 'function') {
-            stopVoiceCall();
-        }
         game.reset();
         board.start();
         $('#pgn-textarea').val('');
@@ -1341,9 +1330,6 @@ $(document).ready(function() {
 
     function showGameOverModal(title, message) {
         stopClocks();
-        if (typeof stopVoiceCall === 'function') {
-            stopVoiceCall();
-        }
         $('#modal-title').text(title);
         $('#modal-message').text(message);
         $('#copy-pgn-toast').hide(); // Hide toast initially
@@ -1841,20 +1827,9 @@ $(document).ready(function() {
     // ----------------------------------------------------
     // Opponent Text Chat & WebRTC Live Voice Call System
     // ----------------------------------------------------
-    let rtcPeerConnection = null;
-    let localAudioStream = null;
-    let isVoiceActive = false;
-    let isMicMuted = false;
-    let iceCandidatesQueue = [];
-
-    const rtcConfig = {
-        iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' }
-        ]
-    };
-
+    // ----------------------------------------------------
+    // Opponent Text Chat System
+    // ----------------------------------------------------
     function escapeHtml(text) {
         if (!text) return '';
         return text.replace(/&/g, "&amp;")
@@ -1909,222 +1884,4 @@ $(document).ready(function() {
             sendChatMessage();
         }
     });
-
-    // WebRTC Live Voice Calling Engine
-    function sendSignal(type, extraData) {
-        if (!isMultiplayerOnline || !stompClient || !stompClient.connected || !currentRoomId) return;
-        const payload = Object.assign({
-            roomId: currentRoomId,
-            senderId: myPlayerId,
-            type: type
-        }, extraData || {});
-        stompClient.send('/app/room/' + currentRoomId + '/signal', {}, JSON.stringify(payload));
-    }
-
-    function updateVoicePill(status, isOnline) {
-        $('#voice-status-text').text(status);
-        const $dot = $('#voice-dot');
-        if (isOnline) {
-            $dot.removeClass('offline').addClass('online');
-        } else {
-            $dot.removeClass('online').addClass('offline');
-        }
-    }
-
-    function addLocalTracksToPeer() {
-        if (!rtcPeerConnection || !localAudioStream) return;
-        const senders = rtcPeerConnection.getSenders();
-        localAudioStream.getTracks().forEach(function(track) {
-            const alreadyAdded = senders.some(function(s) { return s.track && s.track.id === track.id; });
-            if (!alreadyAdded) {
-                rtcPeerConnection.addTrack(track, localAudioStream);
-            }
-        });
-    }
-
-    async function processQueuedCandidates() {
-        if (!rtcPeerConnection || !rtcPeerConnection.remoteDescription || !rtcPeerConnection.remoteDescription.type) return;
-        while (iceCandidatesQueue.length > 0) {
-            const cand = iceCandidatesQueue.shift();
-            try {
-                await rtcPeerConnection.addIceCandidate(new RTCIceCandidate(cand));
-            } catch (e) {
-                console.error("Error adding queued ICE candidate:", e);
-            }
-        }
-    }
-
-    function createPeerConnection() {
-        if (rtcPeerConnection) return;
-        rtcPeerConnection = new RTCPeerConnection(rtcConfig);
-
-        rtcPeerConnection.onicecandidate = function(event) {
-            if (event.candidate) {
-                sendSignal('candidate', { candidate: event.candidate });
-            }
-        };
-
-        rtcPeerConnection.ontrack = function(event) {
-            const remoteAudio = document.getElementById('remote-audio-player');
-            if (remoteAudio && event.streams && event.streams[0]) {
-                remoteAudio.srcObject = event.streams[0];
-                remoteAudio.play().catch(function(err) {
-                    console.warn("Audio play prevented by browser policy (unlock on click):", err);
-                });
-            }
-        };
-
-        rtcPeerConnection.oniceconnectionstatechange = function() {
-            if (!rtcPeerConnection) return;
-            const state = rtcPeerConnection.iceConnectionState;
-            if (state === 'connected' || state === 'completed') {
-                updateVoicePill('Opponent Voice Connected', true);
-            } else if (state === 'failed' || state === 'disconnected') {
-                updateVoicePill('Voice Connection Lost', false);
-            } else if (state === 'checking') {
-                updateVoicePill('Connecting Voice...', true);
-            }
-        };
-    }
-
-    async function acquireLocalAudio() {
-        if (!localAudioStream) {
-            localAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            isVoiceActive = true;
-            isMicMuted = false;
-            $('#btn-toggle-mic').html('<i class="fa-solid fa-microphone"></i> Mute Mic').removeClass('btn-secondary').addClass('btn-accent-gradient');
-            updateVoicePill('Voice Active', true);
-        }
-    }
-
-    async function toggleVoiceCall() {
-        if (!isVoiceActive) {
-            try {
-                await acquireLocalAudio();
-                createPeerConnection();
-                addLocalTracksToPeer();
-
-                const offer = await rtcPeerConnection.createOffer();
-                await rtcPeerConnection.setLocalDescription(offer);
-                sendSignal('offer', { sdp: offer });
-
-            } catch (err) {
-                console.error("Microphone access denied or error:", err);
-                alert("Microphone access required for Live Voice Call.");
-                updateVoicePill('Mic Access Denied', false);
-            }
-        } else {
-            if (localAudioStream) {
-                isMicMuted = !isMicMuted;
-                localAudioStream.getAudioTracks().forEach(function(track) {
-                    track.enabled = !isMicMuted;
-                });
-
-                if (isMicMuted) {
-                    $('#btn-toggle-mic').html('<i class="fa-solid fa-microphone-slash"></i> Unmute Mic').removeClass('btn-accent-gradient').addClass('btn-warning');
-                    updateVoicePill('Mic Muted', true);
-                } else {
-                    $('#btn-toggle-mic').html('<i class="fa-solid fa-microphone"></i> Mute Mic').removeClass('btn-warning').addClass('btn-accent-gradient');
-                    updateVoicePill('Voice Active', true);
-                }
-                sendSignal('mic-status', { isMuted: isMicMuted });
-            }
-        }
-    }
-
-    async function handleWebRTCSignal(signal) {
-        if (!signal || signal.senderId === myPlayerId) return;
-
-        if (signal.type === 'offer') {
-            createPeerConnection();
-            
-            // Try to auto-acquire mic on incoming call so 2-way audio works instantly
-            if (!localAudioStream) {
-                try {
-                    await acquireLocalAudio();
-                } catch (e) {
-                    console.warn("Could not auto-acquire mic on incoming offer (listening only):", e);
-                }
-            }
-
-            addLocalTracksToPeer();
-
-            await rtcPeerConnection.setRemoteDescription(new RTCSessionDescription(signal.sdp));
-            await processQueuedCandidates();
-
-            const answer = await rtcPeerConnection.createAnswer();
-            await rtcPeerConnection.setLocalDescription(answer);
-            sendSignal('answer', { sdp: answer });
-            updateVoicePill('Opponent Voice Connected', true);
-
-        } else if (signal.type === 'answer') {
-            if (rtcPeerConnection) {
-                await rtcPeerConnection.setRemoteDescription(new RTCSessionDescription(signal.sdp));
-                await processQueuedCandidates();
-                updateVoicePill('Opponent Voice Connected', true);
-            }
-        } else if (signal.type === 'candidate') {
-            if (rtcPeerConnection && signal.candidate) {
-                if (rtcPeerConnection.remoteDescription && rtcPeerConnection.remoteDescription.type) {
-                    try {
-                        await rtcPeerConnection.addIceCandidate(new RTCIceCandidate(signal.candidate));
-                    } catch (e) {
-                        console.error("Error adding ICE candidate:", e);
-                    }
-                } else {
-                    iceCandidatesQueue.push(signal.candidate);
-                }
-            }
-        } else if (signal.type === 'mic-status') {
-            if (signal.isMuted) {
-                updateVoicePill('Opponent Muted', true);
-            } else {
-                updateVoicePill('Opponent Voice Connected', true);
-            }
-        } else if (signal.type === 'voice-ended') {
-            stopVoiceCall(true);
-        }
-    }
-
-    function stopVoiceCall(skipSignal) {
-        if (!skipSignal && isMultiplayerOnline && stompClient && stompClient.connected && currentRoomId) {
-            sendSignal('voice-ended', {});
-        }
-        if (localAudioStream) {
-            localAudioStream.getTracks().forEach(function(track) {
-                track.stop(); // Revoke mic hardware access completely
-            });
-            localAudioStream = null;
-        }
-        if (rtcPeerConnection) {
-            try {
-                rtcPeerConnection.close();
-            } catch (e) {}
-            rtcPeerConnection = null;
-        }
-        iceCandidatesQueue = [];
-        isVoiceActive = false;
-        isMicMuted = false;
-
-        const remoteAudio = document.getElementById('remote-audio-player');
-        if (remoteAudio) {
-            remoteAudio.srcObject = null;
-        }
-
-        $('#btn-toggle-mic').html('<i class="fa-solid fa-microphone-slash"></i> Join Voice')
-            .removeClass('btn-accent-gradient btn-warning').addClass('btn-secondary');
-        updateVoicePill('Voice Offline', false);
-    }
-
-    // Mobile / Browser Autoplay unlock on user interaction
-    $(document).on('click touchstart', function() {
-        const remoteAudio = document.getElementById('remote-audio-player');
-        if (remoteAudio && remoteAudio.srcObject && remoteAudio.paused) {
-            remoteAudio.play().catch(function() {
-                // Ignore autoplay unlock failures
-            });
-        }
-    });
-
-    $('#btn-toggle-mic').on('click', toggleVoiceCall);
 });

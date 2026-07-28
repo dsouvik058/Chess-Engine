@@ -1285,27 +1285,7 @@ body {
     background: rgba(255, 255, 255, 0.02);
 }
 
-/* 1v1 Opponent Chat & Live Voice Call Styling */
-.voice-call-wrapper {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 14px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.07);
-    border-radius: var(--radius-sm);
-    margin-bottom: 10px;
-}
-
-.voice-status {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.82rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-}
-
+/* 1v1 Opponent Chat Styling */
 .btn-sm {
     padding: 6px 12px;
     font-size: 0.8rem;

@@ -68,10 +68,4 @@ public class MultiplayerController {
         log.info("Received WebSocket chat message for room {}: {}", roomId, chatMessage.getMessage());
         messagingTemplate.convertAndSend("/topic/room/" + roomId + "/chat", chatMessage);
     }
-
-    @MessageMapping("/room/{roomId}/signal")
-    public void handleSignal(@DestinationVariable String roomId, SignalMessageDTO signal) {
-        log.info("Received WebRTC signal for room {}: {}", roomId, signal.getType());
-        messagingTemplate.convertAndSend("/topic/room/" + roomId + "/signal", signal);
-    }
 }
