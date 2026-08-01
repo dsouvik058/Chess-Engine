@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bot, Users, Lock, ArrowRight, LogOut, Award, ShieldCheck, UserCheck } from 'lucide-react';
+import { Bot, Users, BarChart2, ArrowRight, LogOut, Award, ShieldCheck, UserCheck } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import type { User } from '../../types/auth';
@@ -8,6 +8,7 @@ import { UserAvatar } from '../ui/UserAvatar';
 interface WelcomePageProps {
   onSelectBubbleBot: () => void;
   onSelect1v1: () => void;
+  onSelectAnalyze: () => void;
   user?: User | null;
   onLogout?: () => void;
 }
@@ -15,6 +16,7 @@ interface WelcomePageProps {
 export const WelcomePage: React.FC<WelcomePageProps> = ({
   onSelectBubbleBot,
   onSelect1v1,
+  onSelectAnalyze,
   user,
   onLogout,
 }) => {
@@ -87,7 +89,7 @@ export const WelcomePage: React.FC<WelcomePageProps> = ({
           Choose Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-indigo-400 to-purple-400">Battle Arena</span>
         </h1>
         <p className="text-slate-400 text-sm md:text-base max-w-xl mx-auto">
-          Select a mode below to start playing. Challenge Stockfish 18 AI or face another player in 1 vs 1 mode.
+          Select a mode below to start playing. Challenge Stockfish 18 AI, face another player 1v1, or analyze games with Stockfish move quality insights.
         </p>
       </div>
 
@@ -157,27 +159,34 @@ export const WelcomePage: React.FC<WelcomePageProps> = ({
           </div>
         </Card>
 
-        {/* Option 3: Vacant Section */}
-        <Card className="relative overflow-hidden flex flex-col justify-between p-6 bg-slate-950/40 border-slate-800/60 opacity-60">
+        {/* Option 3: Analyze Game */}
+        <Card className="relative overflow-hidden group hover:border-emerald-500/60 transition-all duration-300 flex flex-col justify-between p-6 bg-slate-900/80 border-slate-800 shadow-2xl">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-all" />
+
           <div>
-            <div className="w-14 h-14 rounded-2xl bg-slate-800/60 border border-slate-700/50 flex items-center justify-center text-slate-500 mb-6">
-              <Lock className="w-7 h-7" />
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white mb-6 shadow-lg shadow-emerald-500/20 group-hover:scale-105 transition-transform">
+              <BarChart2 className="w-8 h-8" />
             </div>
 
             <div className="space-y-2">
-              <span className="text-xs font-mono font-bold text-slate-500 tracking-wider uppercase">OPTION 03 • VACANT</span>
-              <h2 className="text-2xl font-bold text-slate-400">
-                Coming Soon
+              <span className="text-xs font-mono font-bold text-emerald-400 tracking-wider uppercase">OPTION 03 • ACTIVE</span>
+              <h2 className="text-2xl font-bold text-white group-hover:text-emerald-300 transition-colors">
+                Analyze Game
               </h2>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                This section is currently reserved for future game modes or custom battle arenas.
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Paste PGN string or load your finished match to analyze move quality, spot blunders & mistakes, and inspect Stockfish best moves.
               </p>
             </div>
           </div>
 
-          <div className="mt-8 pt-4 border-t border-slate-800/40">
-            <Button variant="outline" className="w-full cursor-not-allowed opacity-50" disabled>
-              <span>Reserved</span>
+          <div className="mt-8 pt-4 border-t border-slate-800/80">
+            <Button
+              variant="accent"
+              className="w-full justify-between group-hover:shadow-emerald-500/25 bg-emerald-600 hover:bg-emerald-500 text-white"
+              onClick={onSelectAnalyze}
+            >
+              <span>Open Analyzer</span>
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Button>
           </div>
         </Card>

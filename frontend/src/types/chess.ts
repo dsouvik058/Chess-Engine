@@ -34,7 +34,7 @@ export interface EngineConfig {
   hashMb?: number;
 }
 
-export type MoveClassification = 'best' | 'excellent' | 'good' | 'inaccuracy' | 'mistake' | 'blunder' | 'book';
+export type MoveClassification = 'brilliant' | 'great' | 'best' | 'good' | 'bad' | 'inaccuracy' | 'mistake' | 'blunder' | 'book';
 
 export interface MoveLogItem {
   moveNumber: number;
@@ -50,6 +50,7 @@ export interface MoveAnalysisDTO {
   moveNumber: number;
   playerColor: string;
   san: string;
+  piece?: string;
   fenBefore: string;
   fenAfter: string;
   evalCpBefore: number;
@@ -57,10 +58,12 @@ export interface MoveAnalysisDTO {
   evalChange: number;
   classification: MoveClassification;
   bestMoveSan?: string;
+  bestMoveUci?: string;
 }
 
 export interface GameAnalysisResponseDTO {
   moves: MoveAnalysisDTO[];
+  evaluations?: MoveAnalysisDTO[];
   whiteAccuracyPercent: number;
   blackAccuracyPercent: number;
   whiteBestCount: number;

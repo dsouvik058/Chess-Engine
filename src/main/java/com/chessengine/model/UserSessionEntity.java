@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
-@Entity
+@ Entity
 @Table(name = "user_sessions")
 @Data
 @Builder

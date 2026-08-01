@@ -7,7 +7,6 @@ import type {
   PlayerColor,
   GameStatusDTO,
   MoveLogItem,
-  GameAnalysisResponseDTO,
 } from './types/chess';
 import type { ChatMessage, MultiplayerMove, GameRoom } from './types/multiplayer';
 import { api } from './services/api';
@@ -28,7 +27,7 @@ import { EngineStatsPanel } from './components/chess/EngineStatsPanel';
 import { PlayerCard } from './components/chess/PlayerCard';
 import { GameControls } from './components/chess/GameControls';
 import { ChatPanel } from './components/chat/ChatPanel';
-import { AnalysisModal } from './components/chess/AnalysisModal';
+import { AnalyzeGameSection } from './components/chess/AnalyzeGameSection';
 import { Modal } from './components/ui/Modal';
 import { Button } from './components/ui/Button';
 import { Home, BarChart2, Copy, RotateCcw, Check } from 'lucide-react';
@@ -38,7 +37,7 @@ import { authApi } from './services/authApi';
 import { AuthPage } from './components/auth/AuthPage';
 import { SkillSelectionPage } from './components/auth/SkillSelectionPage';
 
-type ViewMode = 'WELCOME' | 'GAME';
+type ViewMode = 'WELCOME' | 'GAME' | 'ANALYZE';
 type GameMode = 'BUBBLE_BOT' | 'LOCAL_1V1' | 'ONLINE_1V1';
 
 export function App() {
@@ -48,6 +47,7 @@ export function App() {
 
   const [viewMode, setViewMode] = useState<ViewMode>('WELCOME');
   const [gameMode, setGameMode] = useState<GameMode>('BUBBLE_BOT');
+  const [analysisPgn, setAnalysisPgn] = useState<string>('');
 
   const [game, setGame] = useState(new Chess());
   const [theme, setTheme] = useState<BoardTheme>('wood');
@@ -109,10 +109,6 @@ export function App() {
   const [gameOverTitle, setGameOverTitle] = useState<string | null>(null);
   const [gameOverMessage, setGameOverMessage] = useState<string | null>(null);
   const [pgnCopied, setPgnCopied] = useState<boolean>(false);
-
-  const [isAnalysisOpen, setIsAnalysisOpen] = useState<boolean>(false);
-  const [analysisData, setAnalysisData] = useState<GameAnalysisResponseDTO | null>(null);
-  const [isAnalysisLoading, setIsAnalysisLoading] = useState<boolean>(false);
 
   const [isPgnOpen, setIsPgnOpen] = useState<boolean>(false);
   const [pgnInput, setPgnInput] = useState<string>('');
@@ -672,20 +668,17 @@ export function App() {
     }
   };
 
+  // Redirect user to Analyze Game section view with match PGN
+  const handleRedirectToAnalysis = (customPgn?: string) => {
+    const pgnToUse = customPgn || generateRealPgn();
+    setAnalysisPgn(pgnToUse);
+    setGameOverTitle(null);
+    setViewMode('ANALYZE');
+  };
+
   // Run Game Analysis
   const handleAnalyze = async () => {
-    setIsAnalysisOpen(true);
-    if (movesSanRef.current.length === 0) return;
-    setIsAnalysisLoading(true);
-
-    try {
-      const resp = await api.analyzeGame(movesSanRef.current, fenListRef.current);
-      setAnalysisData(resp);
-    } catch (e) {
-      console.error('Analysis error:', e);
-    } finally {
-      setIsAnalysisLoading(false);
-    }
+    handleRedirectToAnalysis();
   };
 
   // Copy PGN to Clipboard
@@ -750,9 +743,20 @@ export function App() {
         <WelcomePage
           onSelectBubbleBot={() => setIsPreGameBotOpen(true)}
           onSelect1v1={() => setIsPreGame1v1Open(true)}
+          onSelectAnalyze={() => {
+            setAnalysisPgn('');
+            setViewMode('ANALYZE');
+          }}
           user={currentUser}
           onLogout={handleLogout}
         />
+      ) : viewMode === 'ANALYZE' ? (
+        <main className="flex-1 max-w-7xl w-full mx-auto p-4">
+          <AnalyzeGameSection
+            initialPgn={analysisPgn}
+            onBackToWelcome={() => setViewMode('WELCOME')}
+          />
+        </main>
       ) : (
         <main className="flex-1 max-w-7xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* LEFT SIDE: Chessboard Container & Captured Pieces */}
@@ -929,14 +933,6 @@ export function App() {
           </div>
         </div>
       </Modal>
-
-      {/* Analysis Modal */}
-      <AnalysisModal
-        isOpen={isAnalysisOpen}
-        onClose={() => setIsAnalysisOpen(false)}
-        analysis={analysisData}
-        isLoading={isAnalysisLoading}
-      />
 
       {/* PGN / FEN Utility Modal */}
       <Modal isOpen={isPgnOpen} onClose={() => setIsPgnOpen(false)} title="PGN / FEN Utility">
