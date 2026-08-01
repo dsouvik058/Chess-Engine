@@ -5,13 +5,11 @@ import {
   Flag,
   BarChart2,
   FileText,
-  Palette,
   Eye,
   EyeOff,
   Home
 } from 'lucide-react';
 import { Button } from '../ui/Button';
-import type { BoardTheme } from '../../types/chess';
 
 interface GameControlsProps {
   onBackToWelcome: () => void;
@@ -22,8 +20,6 @@ interface GameControlsProps {
   onOpenPgnModal: () => void;
   showLegalMoves: boolean;
   onToggleLegalMoves: () => void;
-  theme: BoardTheme;
-  onThemeChange: (theme: BoardTheme) => void;
   canUndo?: boolean;
 }
 
@@ -36,8 +32,6 @@ export const GameControls: React.FC<GameControlsProps> = ({
   onOpenPgnModal,
   showLegalMoves,
   onToggleLegalMoves,
-  theme,
-  onThemeChange,
   canUndo = false,
 }) => {
   return (
@@ -90,27 +84,12 @@ export const GameControls: React.FC<GameControlsProps> = ({
         </Button>
       </div>
 
-      {/* Bottom Row: Resign & Board Theme Selector in Down Right Hand Side */}
+      {/* Bottom Row: Resign Match Action */}
       <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-2">
-        <Button variant="danger" size="sm" onClick={onResign} className="flex-1">
+        <Button variant="danger" size="sm" onClick={onResign} className="w-full">
           <Flag className="w-4 h-4" />
           Resign Match
         </Button>
-
-        {/* Down Right Hand Side Board Theme Selector */}
-        <div className="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-800">
-          <Palette className="w-3.5 h-3.5 text-cyan-400" />
-          <select
-            value={theme}
-            onChange={(e) => onThemeChange(e.target.value as BoardTheme)}
-            className="bg-transparent text-xs font-semibold text-slate-200 focus:outline-none cursor-pointer"
-          >
-            <option value="cyber" className="bg-slate-900">Cyberpunk</option>
-            <option value="wood" className="bg-slate-900">Wood</option>
-            <option value="emerald" className="bg-slate-900">Emerald</option>
-            <option value="classic" className="bg-slate-900">Classic</option>
-          </select>
-        </div>
       </div>
     </div>
   );

@@ -33,15 +33,24 @@ import { Modal } from './components/ui/Modal';
 import { Button } from './components/ui/Button';
 import { Home, BarChart2, Copy, RotateCcw, Check } from 'lucide-react';
 
+import type { User } from './types/auth';
+import { authApi } from './services/authApi';
+import { AuthPage } from './components/auth/AuthPage';
+import { SkillSelectionPage } from './components/auth/SkillSelectionPage';
+
 type ViewMode = 'WELCOME' | 'GAME';
 type GameMode = 'BUBBLE_BOT' | 'LOCAL_1V1' | 'ONLINE_1V1';
 
 export function App() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
+  const [isSavingSkill, setIsSavingSkill] = useState<boolean>(false);
+
   const [viewMode, setViewMode] = useState<ViewMode>('WELCOME');
   const [gameMode, setGameMode] = useState<GameMode>('BUBBLE_BOT');
 
   const [game, setGame] = useState(new Chess());
-  const [theme, setTheme] = useState<BoardTheme>('cyber');
+  const [theme, setTheme] = useState<BoardTheme>('wood');
   const [boardOrientation, setBoardOrientation] = useState<PlayerColor>('white');
   const [userColor, setUserColor] = useState<PlayerColor>('white');
   const [elo, setElo] = useState<number>(1500);
@@ -107,6 +116,42 @@ export function App() {
 
   const [isPgnOpen, setIsPgnOpen] = useState<boolean>(false);
   const [pgnInput, setPgnInput] = useState<string>('');
+
+  // Verify stored auth session on mount
+  useEffect(() => {
+    authApi
+      .getCurrentUser()
+      .then((user) => {
+        if (user) {
+          setCurrentUser(user);
+          setMyName(user.name);
+          if (user.eloRating && user.eloRating > 0) {
+            setElo(user.eloRating);
+          }
+        }
+      })
+      .finally(() => {
+        setIsAuthChecking(false);
+      });
+  }, []);
+
+  const handleConfirmSkill = async (eloRating: number, skillLevelName: string) => {
+    setIsSavingSkill(true);
+    const res = await authApi.setSkillLevel(eloRating, skillLevelName);
+    setIsSavingSkill(false);
+
+    if (res.success && res.user) {
+      setCurrentUser(res.user);
+      setElo(eloRating);
+      setViewMode('WELCOME');
+    }
+  };
+
+  const handleLogout = async () => {
+    await authApi.logout();
+    setCurrentUser(null);
+    setViewMode('WELCOME');
+  };
 
   // Check URL query parameters for ?room=ROOM_ID
   useEffect(() => {
@@ -651,6 +696,43 @@ export function App() {
     setTimeout(() => setPgnCopied(false), 2500);
   };
 
+  if (isAuthChecking) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
+        <div className="w-12 h-12 border-4 border-cyan-500/30 border-t-cyan-400 rounded-full animate-spin mb-4" />
+        <p className="text-slate-400 text-xs font-mono tracking-widest uppercase animate-pulse">
+          Authenticating Engine Session...
+        </p>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <AuthPage
+        onAuthSuccess={(user) => {
+          setCurrentUser(user);
+          setMyName(user.name);
+          if (user.eloRating && user.eloRating > 0) {
+            setElo(user.eloRating);
+            setViewMode('WELCOME');
+          }
+        }}
+      />
+    );
+  }
+
+  // If user has not chosen their skill level yet (e.g. newly signed up or Google OAuth user)
+  if (!currentUser.skillLevelSelected || currentUser.eloRating === 0) {
+    return (
+      <SkillSelectionPage
+        user={currentUser}
+        onConfirmSkill={handleConfirmSkill}
+        isLoading={isSavingSkill}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 selection:bg-cyan-500 selection:text-slate-950">
       {/* Navbar */}
@@ -659,6 +741,8 @@ export function App() {
         onThemeChange={setTheme}
         isEngineRunning={isEngineRunning}
         onGoHome={() => setViewMode('WELCOME')}
+        user={currentUser}
+        onLogout={handleLogout}
       />
 
       {/* Main View Container */}
@@ -666,6 +750,8 @@ export function App() {
         <WelcomePage
           onSelectBubbleBot={() => setIsPreGameBotOpen(true)}
           onSelect1v1={() => setIsPreGame1v1Open(true)}
+          user={currentUser}
+          onLogout={handleLogout}
         />
       ) : (
         <main className="flex-1 max-w-7xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -734,8 +820,6 @@ export function App() {
               onOpenPgnModal={() => setIsPgnOpen(true)}
               showLegalMoves={showLegalMoves}
               onToggleLegalMoves={() => setShowLegalMoves((prev) => !prev)}
-              theme={theme}
-              onThemeChange={setTheme}
               canUndo={gameMode === 'BUBBLE_BOT' && movesSanRef.current.length > 0 && !isEngineThinking}
             />
 

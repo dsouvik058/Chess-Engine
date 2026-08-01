@@ -1,12 +1,17 @@
 import React from 'react';
 import type { BoardTheme } from '../../types/chess';
-import { Palette, ShieldCheck, Hammer } from 'lucide-react';
+import type { User } from '../../types/auth';
+import { Palette, ShieldCheck, Hammer, LogOut } from 'lucide-react';
+
+import { UserAvatar } from '../ui/UserAvatar';
 
 interface NavbarProps {
   theme: BoardTheme;
   onThemeChange: (theme: BoardTheme) => void;
   isEngineRunning: boolean;
   onGoHome?: () => void;
+  user?: User | null;
+  onLogout?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -14,6 +19,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onThemeChange,
   isEngineRunning,
   onGoHome,
+  user,
+  onLogout,
 }) => {
   return (
     <header className="sticky top-0 z-40 w-full bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/80 px-4 py-3 shadow-lg">
@@ -21,7 +28,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Brand Logo & Name: Grandmaster's Forge */}
         <button
           onClick={onGoHome}
-          className="flex items-center gap-3 text-left focus:outline-none group"
+          className="flex items-center gap-3 text-left focus:outline-none group cursor-pointer"
         >
           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-cyan-500/20 group-hover:scale-105 transition-transform">
             <Hammer className="w-5 h-5 text-white" />
@@ -34,8 +41,32 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </button>
 
-        {/* Right Section: Theme Selector & Status */}
+        {/* Right Section: User Profile Badge, Theme Selector & Status */}
         <div className="flex items-center gap-3">
+          {/* User Profile Pill & Logout (if authenticated) */}
+          {user && (
+            <div className="flex items-center gap-2 bg-slate-900 px-2.5 py-1 rounded-xl border border-slate-800">
+              <UserAvatar
+                src={user.avatarUrl}
+                name={user.name}
+                className="w-7 h-7 rounded-lg border border-cyan-500/40 object-cover"
+              />
+              <div className="hidden md:block text-left pr-1">
+                <div className="text-xs font-bold text-white leading-none">{user.name}</div>
+                <div className="text-[10px] text-slate-400 font-mono">@{user.username}</div>
+              </div>
+              {onLogout && (
+                <button
+                  onClick={onLogout}
+                  className="p-1 text-slate-400 hover:text-rose-400 transition-colors rounded-lg"
+                  title="Logout"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Theme Selector */}
           <div className="flex items-center gap-1.5 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800">
             <Palette className="w-3.5 h-3.5 text-cyan-400" />
