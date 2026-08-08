@@ -19,6 +19,10 @@ export interface BestMoveRequest {
 export interface GameStatusDTO {
   bestMove: string;
   ponderMove?: string;
+  pv?: string;
+  secondBestMove?: string;
+  secondScoreType?: string;
+  secondScoreValue?: number;
   evaluation: string;
   scoreType: 'cp' | 'mate';
   scoreValue: number;
@@ -34,7 +38,17 @@ export interface EngineConfig {
   hashMb?: number;
 }
 
-export type MoveClassification = 'brilliant' | 'great' | 'best' | 'good' | 'bad' | 'inaccuracy' | 'mistake' | 'blunder' | 'book';
+export type MoveClassification =
+  | 'brilliant'
+  | 'great'
+  | 'best'
+  | 'excellent'
+  | 'good'
+  | 'inaccuracy'
+  | 'mistake'
+  | 'blunder'
+  | 'book'
+  | 'miss';
 
 export interface MoveLogItem {
   moveNumber: number;
@@ -47,31 +61,59 @@ export interface MoveLogItem {
 }
 
 export interface MoveAnalysisDTO {
+  moveIndex: number;
   moveNumber: number;
   playerColor: string;
-  san: string;
+  move: string;
   piece?: string;
-  fenBefore: string;
-  fenAfter: string;
-  evalCpBefore: number;
-  evalCpAfter: number;
-  evalChange: number;
-  classification: MoveClassification;
+  from?: string;
+  to?: string;
+  fenBefore?: string;
+  fenAfter?: string;
+  fen?: string;
+  bestMove?: string;
   bestMoveSan?: string;
-  bestMoveUci?: string;
+  secondBestMove?: string;
+  secondBestMoveSan?: string;
+  ponderMove?: string;
+  pv?: string;
+  evaluation: string;
+  scoreType?: string;
+  scoreValue?: number;
+  evalCpBefore?: number;
+  evalCpAfter?: number;
+  winPercentageBefore?: number;
+  winPercentageAfter?: number;
+  winDrop?: number;
+  classification: MoveClassification;
+  depth?: number;
 }
 
 export interface GameAnalysisResponseDTO {
-  moves: MoveAnalysisDTO[];
-  evaluations?: MoveAnalysisDTO[];
-  whiteAccuracyPercent: number;
-  blackAccuracyPercent: number;
-  whiteBestCount: number;
-  whiteInaccuracyCount: number;
-  whiteMistakeCount: number;
-  whiteBlunderCount: number;
-  blackBestCount: number;
-  blackInaccuracyCount: number;
-  blackMistakeCount: number;
-  blackBlunderCount: number;
+  evaluations: MoveAnalysisDTO[];
+  totalMoves: number;
+  whiteAccuracy: number;
+  blackAccuracy: number;
+
+  whiteBookCount?: number;
+  whiteBrilliantCount?: number;
+  whiteGreatCount?: number;
+  whiteBestCount?: number;
+  whiteExcellentCount?: number;
+  whiteGoodCount?: number;
+  whiteInaccuracyCount?: number;
+  whiteMistakeCount?: number;
+  whiteBlunderCount?: number;
+  whiteMissCount?: number;
+
+  blackBookCount?: number;
+  blackBrilliantCount?: number;
+  blackGreatCount?: number;
+  blackBestCount?: number;
+  blackExcellentCount?: number;
+  blackGoodCount?: number;
+  blackInaccuracyCount?: number;
+  blackMistakeCount?: number;
+  blackBlunderCount?: number;
+  blackMissCount?: number;
 }

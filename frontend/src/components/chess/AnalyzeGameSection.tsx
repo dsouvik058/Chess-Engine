@@ -13,14 +13,15 @@ import {
   Sparkles,
   FileText,
   RotateCcw,
-  XCircle,
   CheckCircle2,
+  TrendingDown,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { Modal } from '../ui/Modal';
 import { api } from '../../services/api';
 import type { MoveClassification, BoardTheme } from '../../types/chess';
+import { isBookMove } from '../../utils/openingBook';
 import { soundFx } from '../../utils/sound';
 
 interface AnalyzedMove {
@@ -32,12 +33,16 @@ interface AnalyzedMove {
   to: Square;
   fenBefore: string;
   fenAfter: string;
-  evalCp: number;
-  evalChange: number;
+  evalCpBefore: number;
+  evalCpAfter: number;
+  winPercentageBefore: number;
+  winPercentageAfter: number;
+  winDrop: number;
   classification: MoveClassification;
   bestMoveSan?: string;
   bestMoveFrom?: Square;
   bestMoveTo?: Square;
+  pv?: string;
 }
 
 interface AnalyzeGameSectionProps {
@@ -65,6 +70,18 @@ const PIECE_SYMBOLS: Record<string, string> = {
 
 const SAMPLE_PGN = `1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. b4 Bxb4 5. c3 Ba5 6. d4 exd4 7. O-O d3 8. Qb3 Qf6 9. e5 Qg6 10. Re1 Nge7 11. Ba3 b5 12. Qxb5 Rb8 13. Qa4 Bb6 14. Nbd2 Bb7 15. Ne4 Qf5 16. Bxd3 Qh5 17. Nf6+ gxf6 18. exf6 Rg8 19. Rad1 Qxf3 20. Rxe7+ Nxe7 21. Qxd7+ Kxd7 22. Bf5+ Ke8 23. Bd7+ Kf8 24. Bxe7# 1-0`;
 
+// Formula 2: Win percentage = 50 + 50 * (2 / (1 + exp(-0.00368208 * centipawns)) - 1)
+export function calculateWinPercentage(centipawns: number): number {
+  const winPct = 50.0 + 50.0 * (2.0 / (1.0 + Math.exp(-0.00368208 * centipawns)) - 1.0);
+  return Math.max(0.0, Math.min(100.0, winPct));
+}
+
+// Formula 5: Accuracy = 103.1668 * exp(-0.04354 * avgWinDrop) - 3.1669
+export function calculateAccuracy(avgWinDrop: number): number {
+  const acc = 103.1668 * Math.exp(-0.04354 * avgWinDrop) - 3.1669;
+  return Math.max(0.0, Math.min(100.0, Math.round(acc * 10) / 10));
+}
+
 export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
   initialPgn = '',
   onBackToWelcome,
@@ -84,11 +101,10 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
   const [whiteAccuracy, setWhiteAccuracy] = useState<number>(0);
   const [blackAccuracy, setBlackAccuracy] = useState<number>(0);
   const [stats, setStats] = useState({
-    wBrilliant: 0, wGreat: 0, wBest: 0, wGood: 0, wBad: 0, wInacc: 0, wMistake: 0, wBlunder: 0,
-    bBrilliant: 0, bGreat: 0, bBest: 0, bGood: 0, bBad: 0, bInacc: 0, bMistake: 0, bBlunder: 0,
+    wBook: 0, wBrilliant: 0, wGreat: 0, wBest: 0, wExcellent: 0, wGood: 0, wInacc: 0, wMistake: 0, wBlunder: 0, wMiss: 0,
+    bBook: 0, bBrilliant: 0, bGreat: 0, bBest: 0, bExcellent: 0, bGood: 0, bInacc: 0, bMistake: 0, bBlunder: 0, bMiss: 0,
   });
 
-  // Execute Stockfish game analysis with Chess.com evaluation model & real-time progress update
   const runAnalysis = useCallback(async (pgnStrToAnalyze: string) => {
     if (!pgnStrToAnalyze.trim()) return;
     setIsAnalyzing(true);
@@ -133,16 +149,21 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
       setAnalysisProgress({ current: 0, total: historyMoves.length });
 
       const moveResults: AnalyzedMove[] = [];
-      let wBrilliant = 0, wGreat = 0, wBest = 0, wGood = 0, wBad = 0, wInacc = 0, wMistake = 0, wBlunder = 0;
-      let bBrilliant = 0, bGreat = 0, bBest = 0, bGood = 0, bBad = 0, bInacc = 0, bMistake = 0, bBlunder = 0;
+      const whiteWinDrops: number[] = [];
+      const blackWinDrops: number[] = [];
 
-      let wScoreTotal = 0, wMoveCount = 0;
-      let bScoreTotal = 0, bMoveCount = 0;
+      let wBook = 0, wBrilliant = 0, wGreat = 0, wBest = 0, wExcellent = 0, wGood = 0, wInacc = 0, wMistake = 0, wBlunder = 0, wMiss = 0;
+      let bBook = 0, bBrilliant = 0, bGreat = 0, bBest = 0, bExcellent = 0, bGood = 0, bInacc = 0, bMistake = 0, bBlunder = 0, bMiss = 0;
+
+      let lastOpponentWinDrop = 0;
+      const historySanList: string[] = [];
 
       for (let i = 0; i < historyMoves.length; i++) {
         setAnalysisProgress({ current: i + 1, total: historyMoves.length });
 
         const m = historyMoves[i];
+        historySanList.push(m.san);
+
         const moveNum = Math.floor(i / 2) + 1;
         const color = m.color;
         const fenBeforePos = fenList[i];
@@ -151,16 +172,18 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
         let bestSan: string | undefined = undefined;
         let bestFrom: Square | undefined = undefined;
         let bestTo: Square | undefined = undefined;
+        let pvLine: string | undefined = undefined;
 
-        let evalBeforePlayer = 0;
-        let evalAfterOpponent = 0;
+        let evalBeforePlayerCp = 0;
+        let evalAfterOpponentCp = 0;
 
-        // Query engine for position BEFORE move i (active player perspective)
+        // Query Stockfish BEFORE move (active player perspective)
         try {
           const evalResBefore = await api.getBestMove({ fen: fenBeforePos, elo: 3200 });
           if (evalResBefore) {
-            evalBeforePlayer = evalResBefore.scoreType === 'mate'
-              ? (evalResBefore.scoreValue > 0 ? 1000 : -1000)
+            pvLine = evalResBefore.pv;
+            evalBeforePlayerCp = evalResBefore.scoreType === 'mate'
+              ? (evalResBefore.scoreValue > 0 ? (10000 - Math.min(evalResBefore.scoreValue, 99) * 100) : (-10000 + Math.min(Math.abs(evalResBefore.scoreValue), 99) * 100))
               : (evalResBefore.scoreValue ?? 0);
 
             if (evalResBefore.bestMove && evalResBefore.bestMove.length >= 4) {
@@ -181,89 +204,104 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
           console.warn(`Position BEFORE move ${i} eval warning:`, err);
         }
 
-        // Query engine for position AFTER move i (opponent perspective)
+        // Query Stockfish AFTER move (opponent perspective)
         try {
           const evalResAfter = await api.getBestMove({ fen: fenAfterPos, elo: 3200 });
           if (evalResAfter) {
-            evalAfterOpponent = evalResAfter.scoreType === 'mate'
-              ? (evalResAfter.scoreValue > 0 ? 1000 : -1000)
+            evalAfterOpponentCp = evalResAfter.scoreType === 'mate'
+              ? (evalResAfter.scoreValue > 0 ? (10000 - Math.min(evalResAfter.scoreValue, 99) * 100) : (-10000 + Math.min(Math.abs(evalResAfter.scoreValue), 99) * 100))
               : (evalResAfter.scoreValue ?? 0);
           }
         } catch (err) {
           console.warn(`Position AFTER move ${i} eval warning:`, err);
         }
 
-        // Player's eval after move is -evalAfterOpponent
-        const playerEvalAfter = -evalAfterOpponent;
-        const evalChange = playerEvalAfter - evalBeforePlayer;
-        const evalLoss = Math.max(0, -evalChange);
+        const evalAfterPlayerCp = -evalAfterOpponentCp;
 
+        // Formula 2: Win percentage before & after
+        const winPctBefore = calculateWinPercentage(evalBeforePlayerCp);
+        const winPctAfter = calculateWinPercentage(evalAfterPlayerCp);
+
+        // Formula 3: Win drop = winPctBefore - winPctAfter
+        let winDrop = Math.max(0.0, winPctBefore - winPctAfter);
+
+        // Classification Rules
         let classification: MoveClassification = 'good';
+        const inBook = isBookMove(historySanList);
 
-        const isMatchedBestMove = (m.from === bestFrom && m.to === bestTo) || (bestSan && m.san === bestSan);
+        if (inBook) {
+          classification = 'book';
+          winDrop = 0.0;
+        } else {
+          const isMatchedBestMove = (m.from === bestFrom && m.to === bestTo) || (bestSan && m.san === bestSan);
 
-        // Dynamic piece sacrifice detection (minor or major piece placed on attacked square or material sacrifice with winning position)
-        let isSacrifice = false;
-        if (['n', 'b', 'r', 'q'].includes(m.piece)) {
-          try {
-            const gAfter = new Chess(fenAfterPos);
-            const oppMoves = gAfter.moves({ verbose: true });
-            const isTargetAttacked = oppMoves.some((om) => om.to === m.to);
-            const matDiff = (m.captured ? PIECE_VALUES[m.captured] || 1 : 0) - (PIECE_VALUES[m.piece] || 1);
-            if (isTargetAttacked || matDiff <= -2) {
-              isSacrifice = true;
+          // Material sacrifice check
+          let isSacrifice = false;
+          if (['n', 'b', 'r', 'q'].includes(m.piece)) {
+            try {
+              const gAfter = new Chess(fenAfterPos);
+              const oppMoves = gAfter.moves({ verbose: true });
+              const isTargetAttacked = oppMoves.some((om) => om.to === m.to);
+              const matDiff = (m.captured ? PIECE_VALUES[m.captured] || 1 : 0) - (PIECE_VALUES[m.piece] || 1);
+              if (isTargetAttacked || matDiff <= -2) {
+                isSacrifice = true;
+              }
+            } catch {
+              isSacrifice = false;
             }
-          } catch {
-            isSacrifice = false;
+          }
+
+          if (isSacrifice && winDrop <= 2.0 && winPctBefore < 95.0) {
+            classification = 'brilliant';
+          } else if (isMatchedBestMove && winPctBefore < 95.0 && (winDrop === 0 || i < 6)) {
+            classification = 'great';
+          } else if (winDrop >= 10.0 && (winPctBefore >= 60.0 || lastOpponentWinDrop >= 15.0)) {
+            classification = 'miss';
+          } else if (winDrop <= 0.0001 || (isMatchedBestMove && winDrop <= 0.5)) {
+            classification = 'best';
+          } else if (winDrop <= 2.0) {
+            classification = 'excellent';
+          } else if (winDrop <= 5.0) {
+            classification = 'good';
+          } else if (winDrop <= 10.0) {
+            classification = 'inaccuracy';
+          } else if (winDrop <= 20.0) {
+            classification = 'mistake';
+          } else {
+            classification = 'blunder';
           }
         }
 
-        // Chess.com Classification Rules
-        if (isSacrifice && evalLoss <= 25 && playerEvalAfter >= 80 && isMatchedBestMove) {
-          classification = 'brilliant';
-        } else if (isMatchedBestMove && (evalChange >= 40 || i < 6)) {
-          classification = 'great';
-        } else if (isMatchedBestMove || evalLoss <= 15) {
-          classification = 'best';
-        } else if (evalLoss <= 45) {
-          classification = 'good';
-        } else if (evalLoss <= 110) {
-          classification = 'bad';
-        } else if (evalLoss <= 220) {
-          classification = 'inaccuracy';
-        } else if (evalLoss <= 380) {
-          classification = 'mistake';
-        } else {
-          classification = 'blunder';
-        }
+        lastOpponentWinDrop = winDrop;
 
         if (color === 'w') {
-          if (classification === 'brilliant') wBrilliant++;
-          else if (classification === 'great') wGreat++;
-          else if (classification === 'best') wBest++;
-          else if (classification === 'good') wGood++;
-          else if (classification === 'bad') wBad++;
-          else if (classification === 'inaccuracy') wInacc++;
-          else if (classification === 'mistake') wMistake++;
-          else wBlunder++;
+          whiteWinDrops.push(winDrop);
+          switch (classification) {
+            case 'book': wBook++; break;
+            case 'brilliant': wBrilliant++; break;
+            case 'great': wGreat++; break;
+            case 'best': wBest++; break;
+            case 'excellent': wExcellent++; break;
+            case 'good': wGood++; break;
+            case 'inaccuracy': wInacc++; break;
+            case 'mistake': wMistake++; break;
+            case 'blunder': wBlunder++; break;
+            case 'miss': wMiss++; break;
+          }
         } else {
-          if (classification === 'brilliant') bBrilliant++;
-          else if (classification === 'great') bGreat++;
-          else if (classification === 'best') bBest++;
-          else if (classification === 'good') bGood++;
-          else if (classification === 'bad') bBad++;
-          else if (classification === 'inaccuracy') bInacc++;
-          else if (classification === 'mistake') bMistake++;
-          else bBlunder++;
-        }
-
-        const moveAccScore = Math.max(0, 100 - evalLoss * 0.25);
-        if (color === 'w') {
-          wScoreTotal += moveAccScore;
-          wMoveCount++;
-        } else {
-          bScoreTotal += moveAccScore;
-          bMoveCount++;
+          blackWinDrops.push(winDrop);
+          switch (classification) {
+            case 'book': bBook++; break;
+            case 'brilliant': bBrilliant++; break;
+            case 'great': bGreat++; break;
+            case 'best': bBest++; break;
+            case 'excellent': bExcellent++; break;
+            case 'good': bGood++; break;
+            case 'inaccuracy': bInacc++; break;
+            case 'mistake': bMistake++; break;
+            case 'blunder': bBlunder++; break;
+            case 'miss': bMiss++; break;
+          }
         }
 
         moveResults.push({
@@ -275,33 +313,43 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
           to: m.to as Square,
           fenBefore: fenBeforePos,
           fenAfter: fenAfterPos,
-          evalCp: playerEvalAfter,
-          evalChange,
+          evalCpBefore: evalBeforePlayerCp,
+          evalCpAfter: evalAfterPlayerCp,
+          winPercentageBefore: Math.round(winPctBefore * 10) / 10,
+          winPercentageAfter: Math.round(winPctAfter * 10) / 10,
+          winDrop: Math.round(winDrop * 10) / 10,
           classification,
           bestMoveSan: bestSan,
           bestMoveFrom: bestFrom,
           bestMoveTo: bestTo,
+          pv: pvLine,
         });
       }
 
+      const avgWhiteWinDrop = whiteWinDrops.length > 0 ? whiteWinDrops.reduce((a, b) => a + b, 0) / whiteWinDrops.length : 0;
+      const avgBlackWinDrop = blackWinDrops.length > 0 ? blackWinDrops.reduce((a, b) => a + b, 0) / blackWinDrops.length : 0;
+
+      // Formula 5: Accuracy = 103.1668 * exp(-0.04354 * avgWinDrop) - 3.1669
+      const calculatedWhiteAcc = calculateAccuracy(avgWhiteWinDrop);
+      const calculatedBlackAcc = calculateAccuracy(avgBlackWinDrop);
+
       setAnalyzedMoves(moveResults);
       setCurrentMoveIndex(moveResults.length);
-      setWhiteAccuracy(wMoveCount > 0 ? Math.round(wScoreTotal / wMoveCount) : 100);
-      setBlackAccuracy(bMoveCount > 0 ? Math.round(bScoreTotal / bMoveCount) : 100);
+      setWhiteAccuracy(calculatedWhiteAcc);
+      setBlackAccuracy(calculatedBlackAcc);
       setStats({
-        wBrilliant, wGreat, wBest, wGood, wBad, wInacc, wMistake, wBlunder,
-        bBrilliant, bGreat, bBest, bGood, bBad, bInacc, bMistake, bBlunder,
+        wBook, wBrilliant, wGreat, wBest, wExcellent, wGood, wInacc, wMistake, wBlunder, wMiss,
+        bBook, bBrilliant, bGreat, bBest, bExcellent, bGood, bInacc, bMistake, bBlunder, bMiss,
       });
       setIsModalOpen(false);
 
     } catch (err) {
-      console.error('Error analyzing PGN:', err);
+      console.error('Error analyzing game PGN:', err);
     } finally {
       setIsAnalyzing(false);
     }
   }, []);
 
-  // Compute active FEN for selected step
   const activePositionFen = useMemo(() => {
     if (analyzedMoves.length === 0 || currentMoveIndex === 0) {
       return 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
@@ -310,13 +358,11 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
     return analyzedMoves[idx].fenAfter;
   }, [analyzedMoves, currentMoveIndex]);
 
-  // Current active move object
   const activeMove = useMemo(() => {
     if (currentMoveIndex === 0 || analyzedMoves.length === 0) return null;
     return analyzedMoves[currentMoveIndex - 1] || null;
   }, [analyzedMoves, currentMoveIndex]);
 
-  // Board square styling
   const boardSquareStyles = useMemo(() => {
     const styles: Record<string, React.CSSProperties> = {};
     if (!activeMove) return styles;
@@ -332,7 +378,6 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
     return styles;
   }, [activeMove]);
 
-  // Arrow rendering for best moves: ALWAYS draw green arrow for best move recommendation
   const boardArrows = useMemo(() => {
     if (!activeMove) return [];
     if (activeMove.bestMoveFrom && activeMove.bestMoveTo) {
@@ -341,7 +386,6 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
     return [];
   }, [activeMove]);
 
-  // Autoplay handler
   useEffect(() => {
     let interval: any = null;
     if (isPlaying) {
@@ -366,12 +410,12 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="Analyze Game with Stockfish"
+        title="Analyze Game with Stockfish & Win-Drop Model"
         className="max-w-xl"
       >
         <div className="space-y-5 py-2">
           <p className="text-xs text-slate-400">
-            Paste your game PGN string below and click <strong className="text-emerald-400">Start Analysis with Souvik</strong> to begin Stockfish move evaluation.
+            Paste your PGN below to analyze game accuracy, Stockfish evaluation, Principal Variation (PV), Win Drop %, and 10-tier move quality classifications.
           </p>
 
           <div className="space-y-2">
@@ -405,7 +449,7 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
               <div className="flex items-center justify-between text-xs font-mono">
                 <span className="text-cyan-400 font-bold animate-pulse flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-cyan-400" />
-                  Analyzing {analysisProgress.current} out of {analysisProgress.total} moves...
+                  Evaluating move {analysisProgress.current} of {analysisProgress.total} with Stockfish...
                 </span>
                 <span className="text-emerald-400 font-bold">
                   {Math.round((analysisProgress.current / (analysisProgress.total || 1)) * 100)}%
@@ -438,12 +482,12 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
               {isAnalyzing ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Analyzing Moves...</span>
+                  <span>Analyzing Match...</span>
                 </>
               ) : (
                 <>
                   <Sparkles className="w-4 h-4" />
-                  <span>Start Analysis with Souvik</span>
+                  <span>Start Win-Drop Analysis</span>
                 </>
               )}
             </Button>
@@ -480,7 +524,7 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
               className="text-xs text-slate-400 hover:text-white flex items-center gap-2"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span>Back to Battle Arena</span>
+              <span>Back to Lobby</span>
             </Button>
 
             <Button
@@ -490,50 +534,50 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
               className="text-xs flex items-center gap-1.5 text-emerald-400 border-emerald-500/30"
             >
               <FileText className="w-3.5 h-3.5" />
-              <span>New PGN Analysis</span>
+              <span>Analyze New PGN</span>
             </Button>
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Accuracy Cards, Navigation, Blunder Alerts & Best Move Analysis Panel */}
+        {/* RIGHT COLUMN: Accuracy Cards, Navigation, Metrics & Analysis Panel */}
         <div className="lg:col-span-6 space-y-4">
           
-          {/* Shifted Block 1: Accuracy Summary Cards */}
+          {/* Accuracy Summary Cards (Formula 5) */}
           <div className="grid grid-cols-2 gap-4 w-full">
-            <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 flex items-center justify-between shadow-xl">
+            <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-xl flex items-center justify-between">
               <div>
                 <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider block">
                   White Accuracy
                 </span>
-                <span className="text-2xl font-black font-mono text-cyan-400">
+                <span className="text-3xl font-black font-mono text-cyan-400">
                   {whiteAccuracy}%
                 </span>
               </div>
               <div className="text-right text-[11px] space-y-0.5 font-mono">
-                <div className="text-cyan-300">‼️ {stats.wBrilliant} 🌟 {stats.wGreat} ✨ {stats.wBest}</div>
-                <div className="text-amber-400">👎 Bad: {stats.wBad} ⚠️ Inacc: {stats.wInacc}</div>
-                <div className="text-rose-400">⚡ Mistake: {stats.wMistake} ❌ Blunder: {stats.wBlunder}</div>
+                <div className="text-cyan-300">📖 {stats.wBook} ‼️ {stats.wBrilliant} 🌟 {stats.wGreat}</div>
+                <div className="text-emerald-300">✨ {stats.wBest} 👌 {stats.wExcellent} 👍 {stats.wGood}</div>
+                <div className="text-rose-400">⚠️ {stats.wInacc} ⚡ {stats.wMistake} ❌ {stats.wBlunder}</div>
               </div>
             </div>
 
-            <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 flex items-center justify-between shadow-xl">
+            <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-xl flex items-center justify-between">
               <div>
                 <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider block">
                   Black Accuracy
                 </span>
-                <span className="text-2xl font-black font-mono text-indigo-400">
+                <span className="text-3xl font-black font-mono text-indigo-400">
                   {blackAccuracy}%
                 </span>
               </div>
               <div className="text-right text-[11px] space-y-0.5 font-mono">
-                <div className="text-cyan-300">‼️ {stats.bBrilliant} 🌟 {stats.bGreat} ✨ {stats.bBest}</div>
-                <div className="text-amber-400">👎 Bad: {stats.bBad} ⚠️ Inacc: {stats.bInacc}</div>
-                <div className="text-rose-400">⚡ Mistake: {stats.bMistake} ❌ Blunder: {stats.bBlunder}</div>
+                <div className="text-cyan-300">📖 {stats.bBook} ‼️ {stats.bBrilliant} 🌟 {stats.bGreat}</div>
+                <div className="text-emerald-300">✨ {stats.bBest} 👌 {stats.bExcellent} 👍 {stats.bGood}</div>
+                <div className="text-rose-400">⚠️ {stats.bInacc} ⚡ {stats.bMistake} ❌ {stats.bBlunder}</div>
               </div>
             </div>
           </div>
 
-          {/* Shifted Block 2: Move Navigation Controls */}
+          {/* Move Navigation Controls */}
           <div className="flex items-center justify-between w-full bg-slate-900/90 border border-slate-800 p-2 rounded-xl shadow-lg">
             <div className="flex items-center gap-1">
               <Button
@@ -599,125 +643,89 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
             </div>
           </div>
 
-          {/* Shifted Block 3: Blunder / Inaccuracy Alert Banner */}
-          {activeMove && ['inaccuracy', 'mistake', 'blunder', 'bad'].includes(activeMove.classification) && (
-            <div className="w-full bg-rose-950/40 border border-rose-500/40 rounded-xl p-4 shadow-xl space-y-2 animate-in fade-in slide-in-from-bottom-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-rose-400 font-bold text-xs">
-                  <XCircle className="w-4 h-4" />
-                  <span>
-                    {activeMove.classification === 'blunder'
-                      ? 'BLUNDER DETECTED'
-                      : activeMove.classification === 'mistake'
-                      ? 'MISTAKE DETECTED'
-                      : activeMove.classification === 'bad'
-                      ? 'BAD MOVE DETECTED'
-                      : 'INACCURACY DETECTED'}
+          {/* Active Move Detail Cards */}
+          {activeMove ? (
+            <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4 animate-in fade-in">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">
+                    {PIECE_SYMBOLS[activeMove.piece] || '♟'}
+                  </span>
+                  <div>
+                    <h2 className="text-base font-black font-mono text-white flex items-center gap-2">
+                      <span>Move {activeMove.moveNumber}: {activeMove.san}</span>
+                      <Badge type={activeMove.classification}>{activeMove.classification}</Badge>
+                    </h2>
+                    <span className="text-[11px] font-mono text-slate-400">
+                      Played by {activeMove.color === 'w' ? 'White' : 'Black'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block">
+                    Position Eval
+                  </span>
+                  <span className="text-base font-bold font-mono text-cyan-400">
+                    {activeMove.evalCpAfter >= 0 ? `+${(activeMove.evalCpAfter / 100).toFixed(2)}` : (activeMove.evalCpAfter / 100).toFixed(2)}
                   </span>
                 </div>
-                <span className="text-[10px] font-mono text-slate-400 uppercase">
-                  Move {activeMove.moveNumber} ({activeMove.color === 'w' ? 'White' : 'Black'})
-                </span>
               </div>
 
-              <div className="text-xs text-slate-200 space-y-1 font-mono">
-                <div>
-                  Played Move:{' '}
-                  <span className="font-bold text-rose-300">
-                    {PIECE_SYMBOLS[activeMove.piece] || ''} {activeMove.san}
+              {/* Win Drop & Win Percentage Grid (Formulas 2 & 3) */}
+              <div className="grid grid-cols-3 gap-3 bg-slate-950 p-3.5 rounded-xl border border-slate-800 font-mono text-center">
+                <div className="space-y-0.5">
+                  <span className="text-[10px] text-slate-400 uppercase block">Win % Before</span>
+                  <span className="text-sm font-bold text-slate-200">{activeMove.winPercentageBefore}%</span>
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-[10px] text-slate-400 uppercase block">Win % After</span>
+                  <span className="text-sm font-bold text-slate-200">{activeMove.winPercentageAfter}%</span>
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-[10px] text-rose-400 font-bold uppercase block flex items-center justify-center gap-1">
+                    <TrendingDown className="w-3 h-3" /> Win Drop
+                  </span>
+                  <span className={`text-sm font-black ${activeMove.winDrop > 10 ? 'text-rose-400' : activeMove.winDrop > 2 ? 'text-amber-300' : 'text-emerald-400'}`}>
+                    {activeMove.winDrop}%
+                  </span>
+                </div>
+              </div>
+
+              {/* Engine Recommendation Card */}
+              <div className="bg-emerald-950/30 border border-emerald-500/40 rounded-xl p-4 space-y-2 shadow-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono font-bold text-emerald-400 uppercase tracking-wider block flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    Stockfish Best Move Recommendation
+                  </span>
+                  <span className="text-[11px] font-mono text-emerald-400">
+                    Green Arrow ({activeMove.bestMoveFrom} ➔ {activeMove.bestMoveTo})
                   </span>
                 </div>
 
-                {activeMove.bestMoveSan && (
-                  <div className="flex items-center gap-1.5 text-emerald-400 font-bold">
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>
-                      Stockfish Best Move: <span className="underline decoration-emerald-500">{activeMove.bestMoveSan}</span>
+                <div className="text-lg font-black font-mono text-emerald-300">
+                  {activeMove.bestMoveSan || activeMove.san}
+                </div>
+
+                {activeMove.pv && (
+                  <div className="pt-2 border-t border-emerald-500/20 text-xs font-mono text-slate-300 space-y-1">
+                    <span className="text-[10px] text-emerald-400 font-bold uppercase block">
+                      Principal Variation (PV Line):
                     </span>
+                    <p className="text-[11px] text-slate-300 bg-slate-950 p-2 rounded-lg border border-slate-800 leading-relaxed font-mono">
+                      {activeMove.pv}
+                    </p>
                   </div>
                 )}
               </div>
-
-              <p className="text-[11px] text-slate-400 leading-tight">
-                Stockfish recommends playing {activeMove.bestMoveSan || 'the green arrow move'} to keep optimal position.
-              </p>
+            </div>
+          ) : (
+            <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-8 text-center text-xs text-slate-400 font-mono space-y-2">
+              <Sparkles className="w-6 h-6 text-emerald-400 mx-auto" />
+              <p>Step through moves to view Win Percentage, Win Drop %, Stockfish PV lines, and quality tags.</p>
             </div>
           )}
-
-          {/* Stockfish Best Move & Position Analysis Panel */}
-          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-emerald-400" />
-                Stockfish Best Move & Position Analysis
-              </h2>
-              <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">
-                Stockfish 18 Active
-              </span>
-            </div>
-
-            {activeMove ? (
-              <div className="space-y-4">
-                {/* Played Move Summary */}
-                <div className="flex items-center justify-between bg-slate-950/80 p-3.5 rounded-xl border border-slate-800">
-                  <div>
-                    <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block">
-                      Played Move (Move {activeMove.moveNumber} - {activeMove.color === 'w' ? 'White' : 'Black'})
-                    </span>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xl text-amber-300">
-                        {PIECE_SYMBOLS[activeMove.piece] || ''}
-                      </span>
-                      <span className="text-lg font-black font-mono text-white">
-                        {activeMove.san}
-                      </span>
-                      <Badge type={activeMove.classification}>{activeMove.classification}</Badge>
-                    </div>
-                  </div>
-
-                  <div className="text-right">
-                    <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block">
-                      Position Eval
-                    </span>
-                    <span className="text-base font-bold font-mono text-cyan-400">
-                      {activeMove.evalCp > 0 ? `+${(activeMove.evalCp / 100).toFixed(2)}` : (activeMove.evalCp / 100).toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Stockfish Recommended Best Move Card with Arrow Notice */}
-                <div className="bg-emerald-950/30 border border-emerald-500/40 rounded-xl p-4 space-y-2 shadow-lg">
-                  <span className="text-[10px] font-mono font-bold text-emerald-400 uppercase tracking-wider block">
-                    🟢 Engine Recommended Best Move
-                  </span>
-
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-2xl text-emerald-400">
-                        {activeMove.bestMoveSan ? (PIECE_SYMBOLS[activeMove.bestMoveSan.charAt(0).toLowerCase()] || '♟') : '♟'}
-                      </span>
-                      <span className="text-2xl font-black font-mono text-emerald-300 tracking-wide">
-                        {activeMove.bestMoveSan || activeMove.san}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-1 text-xs text-emerald-400 font-mono bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/30">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>Green Arrow on Board ({activeMove.bestMoveFrom} ➔ {activeMove.bestMoveTo})</span>
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-slate-300 leading-relaxed pt-1">
-                    Stockfish evaluates <strong className="text-emerald-400 font-mono">{activeMove.bestMoveSan || activeMove.san}</strong> as the optimal line for {activeMove.color === 'w' ? 'White' : 'Black'} from this position.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="py-8 text-center text-xs text-slate-400 font-mono">
-                Use the move navigation controls to inspect Stockfish best moves and position arrows step-by-step.
-              </div>
-            )}
-          </div>
         </div>
       </div>
     </div>

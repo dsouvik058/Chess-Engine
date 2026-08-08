@@ -1,5 +1,5 @@
 import React from 'react';
-import type { GameAnalysisResponseDTO } from '../../types/chess';
+import type { GameAnalysisResponseDTO, MoveAnalysisDTO } from '../../types/chess';
 import { Modal } from '../ui/Modal';
 import { Badge } from '../ui/Badge';
 import { Award, Zap, AlertTriangle, AlertCircle, XCircle } from 'lucide-react';
@@ -17,6 +17,8 @@ export const AnalysisModal: React.FC<AnalysisModalProps> = ({
   analysis,
   isLoading,
 }) => {
+  const evaluationsList: MoveAnalysisDTO[] = analysis?.evaluations || [];
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Stockfish 18 Game Analysis" className="max-w-2xl">
       {isLoading ? (
@@ -35,14 +37,14 @@ export const AnalysisModal: React.FC<AnalysisModalProps> = ({
             <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 flex flex-col items-center">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">White Accuracy</span>
               <span className="text-3xl font-black font-mono text-cyan-400">
-                {analysis.whiteAccuracyPercent.toFixed(1)}%
+                {(analysis.whiteAccuracy ?? 100).toFixed(1)}%
               </span>
             </div>
 
             <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 flex flex-col items-center">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Black Accuracy</span>
               <span className="text-3xl font-black font-mono text-indigo-400">
-                {analysis.blackAccuracyPercent.toFixed(1)}%
+                {(analysis.blackAccuracy ?? 100).toFixed(1)}%
               </span>
             </div>
           </div>
@@ -54,19 +56,19 @@ export const AnalysisModal: React.FC<AnalysisModalProps> = ({
               <div className="font-bold text-slate-300 border-b border-slate-800 pb-1">White Summary</div>
               <div className="flex justify-between items-center text-emerald-400">
                 <span className="flex items-center gap-1"><Award className="w-3.5 h-3.5" /> Best Moves</span>
-                <span className="font-bold font-mono">{analysis.whiteBestCount}</span>
+                <span className="font-bold font-mono">{analysis.whiteBestCount ?? 0}</span>
               </div>
               <div className="flex justify-between items-center text-amber-400">
                 <span className="flex items-center gap-1"><Zap className="w-3.5 h-3.5" /> Inaccuracies</span>
-                <span className="font-bold font-mono">{analysis.whiteInaccuracyCount}</span>
+                <span className="font-bold font-mono">{analysis.whiteInaccuracyCount ?? 0}</span>
               </div>
               <div className="flex justify-between items-center text-orange-400">
                 <span className="flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> Mistakes</span>
-                <span className="font-bold font-mono">{analysis.whiteMistakeCount}</span>
+                <span className="font-bold font-mono">{analysis.whiteMistakeCount ?? 0}</span>
               </div>
               <div className="flex justify-between items-center text-rose-400">
                 <span className="flex items-center gap-1"><XCircle className="w-3.5 h-3.5" /> Blunders</span>
-                <span className="font-bold font-mono">{analysis.whiteBlunderCount}</span>
+                <span className="font-bold font-mono">{analysis.whiteBlunderCount ?? 0}</span>
               </div>
             </div>
 
@@ -75,19 +77,19 @@ export const AnalysisModal: React.FC<AnalysisModalProps> = ({
               <div className="font-bold text-slate-300 border-b border-slate-800 pb-1">Black Summary</div>
               <div className="flex justify-between items-center text-emerald-400">
                 <span className="flex items-center gap-1"><Award className="w-3.5 h-3.5" /> Best Moves</span>
-                <span className="font-bold font-mono">{analysis.blackBestCount}</span>
+                <span className="font-bold font-mono">{analysis.blackBestCount ?? 0}</span>
               </div>
               <div className="flex justify-between items-center text-amber-400">
                 <span className="flex items-center gap-1"><Zap className="w-3.5 h-3.5" /> Inaccuracies</span>
-                <span className="font-bold font-mono">{analysis.blackInaccuracyCount}</span>
+                <span className="font-bold font-mono">{analysis.blackInaccuracyCount ?? 0}</span>
               </div>
               <div className="flex justify-between items-center text-orange-400">
                 <span className="flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> Mistakes</span>
-                <span className="font-bold font-mono">{analysis.blackMistakeCount}</span>
+                <span className="font-bold font-mono">{analysis.blackMistakeCount ?? 0}</span>
               </div>
               <div className="flex justify-between items-center text-rose-400">
                 <span className="flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" /> Blunders</span>
-                <span className="font-bold font-mono">{analysis.blackBlunderCount}</span>
+                <span className="font-bold font-mono">{analysis.blackBlunderCount ?? 0}</span>
               </div>
             </div>
           </div>
@@ -105,12 +107,14 @@ export const AnalysisModal: React.FC<AnalysisModalProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/40">
-                {analysis.moves.map((m, idx) => (
+                {evaluationsList.map((m: MoveAnalysisDTO, idx: number) => (
                   <tr key={idx} className="hover:bg-slate-900/60">
-                    <td className="py-1 px-2 text-slate-500">{m.moveNumber}</td>
-                    <td className="py-1 px-2 text-slate-300 capitalize">{m.playerColor}</td>
-                    <td className="py-1 px-2 font-bold text-slate-100">{m.san}</td>
-                    <td className="py-1 px-2 text-slate-400">{(m.evalCpAfter / 100).toFixed(1)}</td>
+                    <td className="py-1 px-2 text-slate-500">{m.moveNumber ?? (Math.floor(idx / 2) + 1)}</td>
+                    <td className="py-1 px-2 text-slate-300 capitalize">{m.playerColor ?? (idx % 2 === 0 ? 'white' : 'black')}</td>
+                    <td className="py-1 px-2 font-bold text-slate-100">{m.move}</td>
+                    <td className="py-1 px-2 text-slate-400">
+                      {m.evalCpAfter !== undefined ? (m.evalCpAfter / 100).toFixed(1) : (m.evaluation || '0.00')}
+                    </td>
                     <td className="py-1 px-2">
                       <Badge type={m.classification}>{m.classification}</Badge>
                     </td>

@@ -77,6 +77,11 @@ public class UciProtocolHandler {
     public GameStatusDTO parseSearchResult(BufferedReader reader, String sideToMove) {
         String bestMove = null;
         String ponderMove = null;
+        String pvString = null;
+        String secondBestMove = null;
+        String secondScoreType = null;
+        Integer secondScoreValue = null;
+
         String evaluation = "0.00";
         String scoreType = "cp";
         int scoreValue = 0;
@@ -90,36 +95,74 @@ public class UciProtocolHandler {
             while ((line = reader.readLine()) != null) {
                 log.debug("Engine output: {}", line);
                 if (line.startsWith("info ")) {
+                    int multipvNum = 1;
+                    if (line.contains(" multipv ")) {
+                        String[] mParts = line.split("\\s+");
+                        for (int i = 0; i < mParts.length - 1; i++) {
+                            if (mParts[i].equals("multipv")) {
+                                try {
+                                    multipvNum = Integer.parseInt(mParts[i + 1]);
+                                } catch (NumberFormatException ignored) {}
+                                break;
+                            }
+                        }
+                    }
+
+                    // Parse PV string
+                    if (line.contains(" pv ")) {
+                        int pvIdx = line.indexOf(" pv ");
+                        String pvLine = line.substring(pvIdx + 4).trim();
+                        if (multipvNum == 1) {
+                            pvString = pvLine;
+                        } else if (multipvNum == 2 && (secondBestMove == null || secondBestMove.isEmpty())) {
+                            String[] pvMoves = pvLine.split("\\s+");
+                            if (pvMoves.length > 0) {
+                                secondBestMove = pvMoves[0];
+                            }
+                        }
+                    }
+
                     String[] parts = line.split("\\s+");
+                    String curScoreType = "cp";
+                    int curScoreVal = 0;
+
                     for (int i = 0; i < parts.length; i++) {
-                        if (parts[i].equals("depth") && i + 1 < parts.length) {
+                        if (parts[i].equals("depth") && i + 1 < parts.length && multipvNum == 1) {
                             try {
                                 depthSearched = Integer.parseInt(parts[i + 1]);
                             } catch (NumberFormatException ignored) {}
                         } else if (parts[i].equals("score") && i + 2 < parts.length) {
-                            scoreType = parts[i + 1];
+                            curScoreType = parts[i + 1];
                             String valStr = parts[i + 2];
                             try {
-                                scoreValue = Integer.parseInt(valStr);
+                                curScoreVal = Integer.parseInt(valStr);
                                 if ("b".equals(sideToMove)) {
-                                    scoreValue = -scoreValue;
+                                    curScoreVal = -curScoreVal;
                                 }
+                            } catch (NumberFormatException ignored) {}
+
+                            if (multipvNum == 1) {
+                                scoreType = curScoreType;
+                                scoreValue = curScoreVal;
                                 if ("cp".equals(scoreType)) {
                                     double cpVal = scoreValue / 100.0;
                                     evaluation = String.format("%s%.2f", cpVal >= 0 ? "+" : "", cpVal);
                                 } else if ("mate".equals(scoreType)) {
                                     evaluation = String.format("#%s%d", scoreValue >= 0 ? "M" : "-M", Math.abs(scoreValue));
                                 }
-                            } catch (NumberFormatException ignored) {}
-                        } else if (parts[i].equals("nodes") && i + 1 < parts.length) {
+                            } else if (multipvNum == 2) {
+                                secondScoreType = curScoreType;
+                                secondScoreValue = curScoreVal;
+                            }
+                        } else if (parts[i].equals("nodes") && i + 1 < parts.length && multipvNum == 1) {
                             try {
                                 nodes = Long.parseLong(parts[i + 1]);
                             } catch (NumberFormatException ignored) {}
-                        } else if (parts[i].equals("nps") && i + 1 < parts.length) {
+                        } else if (parts[i].equals("nps") && i + 1 < parts.length && multipvNum == 1) {
                             try {
                                 nps = Long.parseLong(parts[i + 1]);
                             } catch (NumberFormatException ignored) {}
-                        } else if (parts[i].equals("time") && i + 1 < parts.length) {
+                        } else if (parts[i].equals("time") && i + 1 < parts.length && multipvNum == 1) {
                             try {
                                 timeMs = Long.parseLong(parts[i + 1]);
                             } catch (NumberFormatException ignored) {}
@@ -141,6 +184,10 @@ public class UciProtocolHandler {
         return GameStatusDTO.builder()
                 .bestMove(bestMove)
                 .ponderMove(ponderMove)
+                .pv(pvString)
+                .secondBestMove(secondBestMove)
+                .secondScoreType(secondScoreType)
+                .secondScoreValue(secondScoreValue)
                 .evaluation(evaluation)
                 .scoreType(scoreType)
                 .scoreValue(scoreValue)

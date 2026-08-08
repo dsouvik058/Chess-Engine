@@ -75,6 +75,10 @@ public class StockfishProcessManager {
      * Synchronized to ensure thread-safety across API requests.
      */
     public synchronized GameStatusDTO calculateBestMove(String fen, List<String> moves, Integer movetime, Integer depth, Integer elo) {
+        return calculateBestMove(fen, moves, movetime, depth, elo, 1);
+    }
+
+    public synchronized GameStatusDTO calculateBestMove(String fen, List<String> moves, Integer movetime, Integer depth, Integer elo, int multiPv) {
         try {
             if (process == null || !process.isAlive()) {
                 log.warn("Stockfish process not running. Attempting restart...");
@@ -88,6 +92,7 @@ public class StockfishProcessManager {
             for (String cmd : strengthCommands) {
                 sendCommand(cmd);
             }
+            sendCommand("setoption name MultiPV value " + Math.max(1, multiPv));
 
             String posCmd = uciHandler.buildPositionCommand(fen, moves);
             sendCommand(posCmd);

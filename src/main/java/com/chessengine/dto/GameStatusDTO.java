@@ -12,6 +12,10 @@ import lombok.NoArgsConstructor;
 public class GameStatusDTO {
     private String bestMove;
     private String ponderMove;
+    private String pv;
+    private String secondBestMove;
+    private String secondScoreType;
+    private Integer secondScoreValue;
     private String evaluation; // Human readable (e.g. "+1.25" or "#M3")
     private String scoreType;  // "cp" or "mate"
     private Integer scoreValue; // numeric value
