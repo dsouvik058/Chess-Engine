@@ -500,8 +500,8 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
         
         {/* LEFT COLUMN: Interactive Chessboard */}
         <div className="lg:col-span-6 flex flex-col items-center gap-4">
-          <div className="relative rounded-2xl p-3 bg-slate-900/90 border border-slate-800 shadow-2xl shadow-emerald-500/10">
-            <div className="w-[420px] sm:w-[460px] md:w-[480px] h-[420px] sm:h-[460px] md:h-[480px] rounded-xl overflow-hidden">
+          <div className="relative rounded-3xl p-3.5 glass-card border border-slate-700/80 shadow-2xl shadow-emerald-500/10 w-full max-w-[500px]">
+            <div className="w-full aspect-square rounded-2xl overflow-hidden shadow-2xl border border-slate-800">
               <Chessboard
                 options={{
                   position: activePositionFen,
@@ -516,12 +516,12 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center justify-between w-full max-w-[480px]">
+          <div className="flex items-center justify-between w-full max-w-[500px]">
             <Button
               variant="outline"
               size="sm"
               onClick={onBackToWelcome}
-              className="text-xs text-slate-400 hover:text-white flex items-center gap-2"
+              className="text-xs text-slate-400 hover:text-white flex items-center gap-2 font-bold rounded-xl"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Back to Lobby</span>
@@ -531,7 +531,7 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
               variant="secondary"
               size="sm"
               onClick={() => setIsModalOpen(true)}
-              className="text-xs flex items-center gap-1.5 text-emerald-400 border-emerald-500/30"
+              className="text-xs flex items-center gap-1.5 text-emerald-400 border-emerald-500/30 font-bold rounded-xl"
             >
               <FileText className="w-3.5 h-3.5" />
               <span>Analyze New PGN</span>
@@ -543,8 +543,8 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
         <div className="lg:col-span-6 space-y-4">
           
           {/* Accuracy Summary Cards (Formula 5) */}
-          <div className="grid grid-cols-2 gap-4 w-full">
-            <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-xl flex items-center justify-between">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
+            <div className="glass-card border border-slate-800 rounded-2xl p-4 shadow-xl flex items-center justify-between">
               <div>
                 <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider block">
                   White Accuracy
@@ -560,7 +560,7 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
               </div>
             </div>
 
-            <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-xl flex items-center justify-between">
+            <div className="glass-card border border-slate-800 rounded-2xl p-4 shadow-xl flex items-center justify-between">
               <div>
                 <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider block">
                   Black Accuracy

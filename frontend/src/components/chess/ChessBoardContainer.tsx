@@ -53,12 +53,12 @@ export const ChessBoardContainer: React.FC<ChessBoardContainerProps> = ({
       const isCapture = game.get(move.to as Square);
       newSquares[move.to] = {
         background: isCapture
-          ? 'radial-gradient(circle, rgba(239,68,68,0.7) 35%, transparent 40%)'
-          : 'radial-gradient(circle, rgba(6,182,212,0.6) 25%, transparent 30%)',
+          ? 'radial-gradient(circle, rgba(239,68,68,0.75) 35%, transparent 40%)'
+          : 'radial-gradient(circle, rgba(6,182,212,0.7) 25%, transparent 30%)',
       };
     });
     newSquares[square] = {
-      background: 'rgba(6,182,212,0.3)',
+      background: 'rgba(6,182,212,0.35)',
     };
     setOptionSquares(newSquares);
     return true;
@@ -93,8 +93,8 @@ export const ChessBoardContainer: React.FC<ChessBoardContainerProps> = ({
   const colors = customBoardStyles[theme] || customBoardStyles.cyber;
 
   return (
-    <div className="relative rounded-2xl p-3 bg-slate-900/90 border border-slate-700/80 shadow-2xl shadow-cyan-500/10 backdrop-blur-md transition-all duration-300">
-      <div className="w-[480px] h-[480px] rounded-xl overflow-hidden shadow-inner">
+    <div className="relative rounded-3xl p-2.5 sm:p-3.5 glass-card border border-slate-700/80 shadow-2xl shadow-cyan-500/10 backdrop-blur-xl transition-all duration-300 w-full max-w-[560px]">
+      <div className="w-full aspect-square rounded-2xl overflow-hidden shadow-2xl shadow-black/60 border border-slate-800">
         <Chessboard
           options={{
             position: game.fen(),
@@ -105,8 +105,8 @@ export const ChessBoardContainer: React.FC<ChessBoardContainerProps> = ({
             lightSquareStyle: { backgroundColor: colors.light },
             squareStyles: showLegalMoves ? optionSquares : {},
             boardStyle: {
-              borderRadius: '12px',
-              boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5)',
+              borderRadius: '16px',
+              boxShadow: '0 15px 35px -5px rgba(0, 0, 0, 0.6)',
             },
             allowDragging: isInteractive,
           }}
@@ -115,3 +115,4 @@ export const ChessBoardContainer: React.FC<ChessBoardContainerProps> = ({
     </div>
   );
 };
+

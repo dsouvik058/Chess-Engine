@@ -48,6 +48,13 @@ export function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('WELCOME');
   const [gameMode, setGameMode] = useState<GameMode>('BUBBLE_BOT');
   const [analysisPgn, setAnalysisPgn] = useState<string>('');
+  const [isSoundEnabled, setIsSoundEnabled] = useState<boolean>(true);
+
+  const handleToggleSound = () => {
+    const next = !isSoundEnabled;
+    setIsSoundEnabled(next);
+    soundFx.setEnabled(next);
+  };
 
   const [game, setGame] = useState(new Chess());
   const [theme, setTheme] = useState<BoardTheme>('wood');
@@ -736,6 +743,8 @@ export function App() {
         onGoHome={() => setViewMode('WELCOME')}
         user={currentUser}
         onLogout={handleLogout}
+        isSoundEnabled={isSoundEnabled}
+        onToggleSound={handleToggleSound}
       />
 
       {/* Main View Container */}
@@ -748,7 +757,6 @@ export function App() {
             setViewMode('ANALYZE');
           }}
           user={currentUser}
-          onLogout={handleLogout}
         />
       ) : viewMode === 'ANALYZE' ? (
         <main className="flex-1 max-w-7xl w-full mx-auto p-4">
