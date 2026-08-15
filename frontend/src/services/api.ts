@@ -44,10 +44,20 @@ export const api = {
     });
   },
 
-  analyzeGame(moves: string[], fenList?: string[]): Promise<GameAnalysisResponseDTO> {
+  analyzeGame(
+    moves: string[],
+    options?: { sanMoves?: string[]; movetime?: number; elo?: number; depth?: number; fen?: string }
+  ): Promise<GameAnalysisResponseDTO> {
     return fetchJson<GameAnalysisResponseDTO>('/api/chess/analyze', {
       method: 'POST',
-      body: JSON.stringify({ moves, fenList }),
+      body: JSON.stringify({
+        moves,
+        sanMoves: options?.sanMoves,
+        movetime: options?.movetime,
+        elo: options?.elo,
+        depth: options?.depth,
+        fen: options?.fen,
+      }),
     });
   },
 

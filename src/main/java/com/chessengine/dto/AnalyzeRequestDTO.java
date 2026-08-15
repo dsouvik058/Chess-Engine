@@ -14,7 +14,7 @@ import java.util.List;
 public class AnalyzeRequestDTO {
     private String fen;
     private List<String> moves;
-    private String pgn;
+    private List<String> sanMoves;
     private Integer elo;
     private Integer movetime;
     private Integer depth;

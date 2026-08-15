@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Chess } from 'chess.js';
 import type { Square } from 'chess.js';
 import { Chessboard } from 'react-chessboard';
@@ -13,12 +13,12 @@ import {
   Sparkles,
   FileText,
   RotateCcw,
-  CheckCircle2,
-  TrendingDown,
+  History,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { Modal } from '../ui/Modal';
+import { EvaluationBar } from './EvaluationBar';
 import { api } from '../../services/api';
 import type { MoveClassification, BoardTheme } from '../../types/chess';
 import { isBookMove } from '../../utils/openingBook';
@@ -50,14 +50,6 @@ interface AnalyzeGameSectionProps {
   onBackToWelcome: () => void;
 }
 
-const PIECE_VALUES: Record<string, number> = {
-  p: 1,
-  n: 3,
-  b: 3,
-  r: 5,
-  q: 9,
-  k: 0,
-};
 
 const PIECE_SYMBOLS: Record<string, string> = {
   p: '♟',
@@ -70,17 +62,60 @@ const PIECE_SYMBOLS: Record<string, string> = {
 
 const SAMPLE_PGN = `1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. b4 Bxb4 5. c3 Ba5 6. d4 exd4 7. O-O d3 8. Qb3 Qf6 9. e5 Qg6 10. Re1 Nge7 11. Ba3 b5 12. Qxb5 Rb8 13. Qa4 Bb6 14. Nbd2 Bb7 15. Ne4 Qf5 16. Bxd3 Qh5 17. Nf6+ gxf6 18. exf6 Rg8 19. Rad1 Qxf3 20. Rxe7+ Nxe7 21. Qxd7+ Kxd7 22. Bf5+ Ke8 23. Bd7+ Kf8 24. Bxe7# 1-0`;
 
-// Formula 2: Win percentage = 50 + 50 * (2 / (1 + exp(-0.00368208 * centipawns)) - 1)
 export function calculateWinPercentage(centipawns: number): number {
   const winPct = 50.0 + 50.0 * (2.0 / (1.0 + Math.exp(-0.00368208 * centipawns)) - 1.0);
   return Math.max(0.0, Math.min(100.0, winPct));
 }
 
-// Formula 5: Accuracy = 103.1668 * exp(-0.04354 * avgWinDrop) - 3.1669
 export function calculateAccuracy(avgWinDrop: number): number {
   const acc = 103.1668 * Math.exp(-0.04354 * avgWinDrop) - 3.1669;
   return Math.max(0.0, Math.min(100.0, Math.round(acc * 10) / 10));
 }
+
+const getSquarePercent = (square: Square, isFlipped: boolean) => {
+  const file = square[0];
+  const rank = parseInt(square[1], 10);
+
+  let col = 'abcdefgh'.indexOf(file);
+  let row = 8 - rank;
+
+  if (isFlipped) {
+    col = 7 - col;
+    row = 7 - row;
+  }
+
+  return {
+    leftPercent: col * 12.5,
+    topPercent: row * 12.5,
+  };
+};
+
+const getClassificationBadge = (classification: MoveClassification) => {
+  switch (classification) {
+    case 'brilliant':
+      return { symbol: '!!', className: 'bg-gradient-to-r from-cyan-400 to-teal-400 text-slate-950 font-black shadow-lg shadow-cyan-500/50 ring-2 ring-cyan-300/50', label: 'Brilliant Move' };
+    case 'great':
+      return { symbol: '!', className: 'bg-blue-500 text-white font-bold shadow-lg shadow-blue-500/50', label: 'Great Move' };
+    case 'best':
+      return { symbol: '★', className: 'bg-emerald-500 text-white font-bold shadow-lg shadow-emerald-500/50', label: 'Best Move' };
+    case 'excellent':
+      return { symbol: '✓', className: 'bg-teal-500 text-white font-bold shadow-lg shadow-teal-500/50', label: 'Excellent Move' };
+    case 'good':
+      return { symbol: '👍', className: 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/50', label: 'Good Move' };
+    case 'inaccuracy':
+      return { symbol: '?!', className: 'bg-amber-400 text-slate-950 font-black shadow-lg shadow-amber-400/50', label: 'Inaccuracy' };
+    case 'mistake':
+      return { symbol: '?', className: 'bg-orange-500 text-white font-black shadow-lg shadow-orange-500/50', label: 'Mistake' };
+    case 'blunder':
+      return { symbol: '??', className: 'bg-red-600 text-white font-black shadow-lg shadow-red-600/50 animate-bounce', label: 'Blunder' };
+    case 'miss':
+      return { symbol: '❌', className: 'bg-rose-700 text-white font-bold shadow-lg shadow-rose-700/50', label: 'Missed Win' };
+    case 'book':
+      return { symbol: '📖', className: 'bg-sky-500 text-white shadow-lg shadow-sky-500/50', label: 'Book Move' };
+    default:
+      return { symbol: '✓', className: 'bg-slate-600 text-white', label: 'Move' };
+  }
+};
 
 export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
   initialPgn = '',
@@ -97,13 +132,11 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
   const [boardTheme] = useState<BoardTheme>('wood');
   const [isFlipped, setIsFlipped] = useState<boolean>(false);
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+
   // Summary stats
   const [whiteAccuracy, setWhiteAccuracy] = useState<number>(0);
   const [blackAccuracy, setBlackAccuracy] = useState<number>(0);
-  const [stats, setStats] = useState({
-    wBook: 0, wBrilliant: 0, wGreat: 0, wBest: 0, wExcellent: 0, wGood: 0, wInacc: 0, wMistake: 0, wBlunder: 0, wMiss: 0,
-    bBook: 0, bBrilliant: 0, bGreat: 0, bBest: 0, bExcellent: 0, bGood: 0, bInacc: 0, bMistake: 0, bBlunder: 0, bMiss: 0,
-  });
 
   const runAnalysis = useCallback(async (pgnStrToAnalyze: string) => {
     if (!pgnStrToAnalyze.trim()) return;
@@ -141,206 +174,92 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
       const fenList: string[] = ['rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'];
 
       const stepGame = new Chess();
+      const uciMoves: string[] = [];
+      const sanMoves: string[] = [];
+
       historyMoves.forEach((m) => {
+        const uci = `${m.from}${m.to}${m.promotion || ''}`;
+        uciMoves.push(uci);
+        sanMoves.push(m.san);
         stepGame.move(m.san);
         fenList.push(stepGame.fen());
       });
 
       setAnalysisProgress({ current: 0, total: historyMoves.length });
 
+      // Fast single batch API call to the optimized backend Stockfish pipeline
+      const analysisRes = await api.analyzeGame(uciMoves, {
+        sanMoves,
+        movetime: 120,
+        elo: 3200,
+      });
+
       const moveResults: AnalyzedMove[] = [];
-      const whiteWinDrops: number[] = [];
-      const blackWinDrops: number[] = [];
-
-      let wBook = 0, wBrilliant = 0, wGreat = 0, wBest = 0, wExcellent = 0, wGood = 0, wInacc = 0, wMistake = 0, wBlunder = 0, wMiss = 0;
-      let bBook = 0, bBrilliant = 0, bGreat = 0, bBest = 0, bExcellent = 0, bGood = 0, bInacc = 0, bMistake = 0, bBlunder = 0, bMiss = 0;
-
-      let lastOpponentWinDrop = 0;
-      const historySanList: string[] = [];
+      const evaluations = analysisRes?.evaluations || [];
 
       for (let i = 0; i < historyMoves.length; i++) {
         setAnalysisProgress({ current: i + 1, total: historyMoves.length });
 
         const m = historyMoves[i];
-        historySanList.push(m.san);
-
         const moveNum = Math.floor(i / 2) + 1;
         const color = m.color;
         const fenBeforePos = fenList[i];
         const fenAfterPos = fenList[i + 1];
+        const evalItem = evaluations[i];
 
         let bestSan: string | undefined = undefined;
         let bestFrom: Square | undefined = undefined;
         let bestTo: Square | undefined = undefined;
-        let pvLine: string | undefined = undefined;
 
-        let evalBeforePlayerCp = 0;
-        let evalAfterOpponentCp = 0;
+        if (evalItem?.bestMove && evalItem.bestMove.length >= 4) {
+          const bUci = evalItem.bestMove;
+          bestFrom = bUci.substring(0, 2) as Square;
+          bestTo = bUci.substring(2, 4) as Square;
 
-        // Query Stockfish BEFORE move (active player perspective)
-        try {
-          const evalResBefore = await api.getBestMove({ fen: fenBeforePos, elo: 3200 });
-          if (evalResBefore) {
-            pvLine = evalResBefore.pv;
-            evalBeforePlayerCp = evalResBefore.scoreType === 'mate'
-              ? (evalResBefore.scoreValue > 0 ? (10000 - Math.min(evalResBefore.scoreValue, 99) * 100) : (-10000 + Math.min(Math.abs(evalResBefore.scoreValue), 99) * 100))
-              : (evalResBefore.scoreValue ?? 0);
-
-            if (evalResBefore.bestMove && evalResBefore.bestMove.length >= 4) {
-              const bUci = evalResBefore.bestMove;
-              bestFrom = bUci.substring(0, 2) as Square;
-              bestTo = bUci.substring(2, 4) as Square;
-
-              try {
-                const prevGamePos = new Chess(fenBeforePos);
-                const res = prevGamePos.move({ from: bestFrom, to: bestTo, promotion: 'q' });
-                if (res) bestSan = res.san;
-              } catch {
-                bestSan = evalResBefore.bestMove;
-              }
-            }
-          }
-        } catch (err) {
-          console.warn(`Position BEFORE move ${i} eval warning:`, err);
-        }
-
-        // Query Stockfish AFTER move (opponent perspective)
-        try {
-          const evalResAfter = await api.getBestMove({ fen: fenAfterPos, elo: 3200 });
-          if (evalResAfter) {
-            evalAfterOpponentCp = evalResAfter.scoreType === 'mate'
-              ? (evalResAfter.scoreValue > 0 ? (10000 - Math.min(evalResAfter.scoreValue, 99) * 100) : (-10000 + Math.min(Math.abs(evalResAfter.scoreValue), 99) * 100))
-              : (evalResAfter.scoreValue ?? 0);
-          }
-        } catch (err) {
-          console.warn(`Position AFTER move ${i} eval warning:`, err);
-        }
-
-        const evalAfterPlayerCp = -evalAfterOpponentCp;
-
-        // Formula 2: Win percentage before & after
-        const winPctBefore = calculateWinPercentage(evalBeforePlayerCp);
-        const winPctAfter = calculateWinPercentage(evalAfterPlayerCp);
-
-        // Formula 3: Win drop = winPctBefore - winPctAfter
-        let winDrop = Math.max(0.0, winPctBefore - winPctAfter);
-
-        // Classification Rules
-        let classification: MoveClassification = 'good';
-        const inBook = isBookMove(historySanList);
-
-        if (inBook) {
-          classification = 'book';
-          winDrop = 0.0;
-        } else {
-          const isMatchedBestMove = (m.from === bestFrom && m.to === bestTo) || (bestSan && m.san === bestSan);
-
-          // Material sacrifice check
-          let isSacrifice = false;
-          if (['n', 'b', 'r', 'q'].includes(m.piece)) {
-            try {
-              const gAfter = new Chess(fenAfterPos);
-              const oppMoves = gAfter.moves({ verbose: true });
-              const isTargetAttacked = oppMoves.some((om) => om.to === m.to);
-              const matDiff = (m.captured ? PIECE_VALUES[m.captured] || 1 : 0) - (PIECE_VALUES[m.piece] || 1);
-              if (isTargetAttacked || matDiff <= -2) {
-                isSacrifice = true;
-              }
-            } catch {
-              isSacrifice = false;
-            }
-          }
-
-          if (isSacrifice && winDrop <= 2.0 && winPctBefore < 95.0) {
-            classification = 'brilliant';
-          } else if (isMatchedBestMove && winPctBefore < 95.0 && (winDrop === 0 || i < 6)) {
-            classification = 'great';
-          } else if (winDrop >= 10.0 && (winPctBefore >= 60.0 || lastOpponentWinDrop >= 15.0)) {
-            classification = 'miss';
-          } else if (winDrop <= 0.0001 || (isMatchedBestMove && winDrop <= 0.5)) {
-            classification = 'best';
-          } else if (winDrop <= 2.0) {
-            classification = 'excellent';
-          } else if (winDrop <= 5.0) {
-            classification = 'good';
-          } else if (winDrop <= 10.0) {
-            classification = 'inaccuracy';
-          } else if (winDrop <= 20.0) {
-            classification = 'mistake';
-          } else {
-            classification = 'blunder';
+          try {
+            const prevGamePos = new Chess(fenBeforePos);
+            const res = prevGamePos.move({ from: bestFrom, to: bestTo, promotion: (bUci[4] || 'q') });
+            if (res) bestSan = res.san;
+          } catch {
+            bestSan = evalItem.bestMove;
           }
         }
 
-        lastOpponentWinDrop = winDrop;
-
-        if (color === 'w') {
-          whiteWinDrops.push(winDrop);
-          switch (classification) {
-            case 'book': wBook++; break;
-            case 'brilliant': wBrilliant++; break;
-            case 'great': wGreat++; break;
-            case 'best': wBest++; break;
-            case 'excellent': wExcellent++; break;
-            case 'good': wGood++; break;
-            case 'inaccuracy': wInacc++; break;
-            case 'mistake': wMistake++; break;
-            case 'blunder': wBlunder++; break;
-            case 'miss': wMiss++; break;
-          }
-        } else {
-          blackWinDrops.push(winDrop);
-          switch (classification) {
-            case 'book': bBook++; break;
-            case 'brilliant': bBrilliant++; break;
-            case 'great': bGreat++; break;
-            case 'best': bBest++; break;
-            case 'excellent': bExcellent++; break;
-            case 'good': bGood++; break;
-            case 'inaccuracy': bInacc++; break;
-            case 'mistake': bMistake++; break;
-            case 'blunder': bBlunder++; break;
-            case 'miss': bMiss++; break;
-          }
+        if (!bestFrom || !bestTo) {
+          bestFrom = m.from as Square;
+          bestTo = m.to as Square;
         }
+
+        const classification: MoveClassification =
+          (evalItem?.classification as MoveClassification) ||
+          (isBookMove(sanMoves.slice(0, i + 1)) ? 'book' : 'good');
 
         moveResults.push({
           moveNumber: moveNum,
-          color: m.color,
+          color,
           san: m.san,
           piece: m.piece,
           from: m.from as Square,
           to: m.to as Square,
           fenBefore: fenBeforePos,
           fenAfter: fenAfterPos,
-          evalCpBefore: evalBeforePlayerCp,
-          evalCpAfter: evalAfterPlayerCp,
-          winPercentageBefore: Math.round(winPctBefore * 10) / 10,
-          winPercentageAfter: Math.round(winPctAfter * 10) / 10,
-          winDrop: Math.round(winDrop * 10) / 10,
+          evalCpBefore: evalItem?.evalCpBefore ?? 0,
+          evalCpAfter: evalItem?.evalCpAfter ?? 0,
+          winPercentageBefore: evalItem?.winPercentageBefore ?? 50.0,
+          winPercentageAfter: evalItem?.winPercentageAfter ?? 50.0,
+          winDrop: evalItem?.winDrop ?? 0.0,
           classification,
           bestMoveSan: bestSan,
           bestMoveFrom: bestFrom,
           bestMoveTo: bestTo,
-          pv: pvLine,
+          pv: evalItem?.pv,
         });
       }
 
-      const avgWhiteWinDrop = whiteWinDrops.length > 0 ? whiteWinDrops.reduce((a, b) => a + b, 0) / whiteWinDrops.length : 0;
-      const avgBlackWinDrop = blackWinDrops.length > 0 ? blackWinDrops.reduce((a, b) => a + b, 0) / blackWinDrops.length : 0;
-
-      // Formula 5: Accuracy = 103.1668 * exp(-0.04354 * avgWinDrop) - 3.1669
-      const calculatedWhiteAcc = calculateAccuracy(avgWhiteWinDrop);
-      const calculatedBlackAcc = calculateAccuracy(avgBlackWinDrop);
-
       setAnalyzedMoves(moveResults);
       setCurrentMoveIndex(moveResults.length);
-      setWhiteAccuracy(calculatedWhiteAcc);
-      setBlackAccuracy(calculatedBlackAcc);
-      setStats({
-        wBook, wBrilliant, wGreat, wBest, wExcellent, wGood, wInacc, wMistake, wBlunder, wMiss,
-        bBook, bBrilliant, bGreat, bBest, bExcellent, bGood, bInacc, bMistake, bBlunder, bMiss,
-      });
+      setWhiteAccuracy(analysisRes?.whiteAccuracy ?? 100.0);
+      setBlackAccuracy(analysisRes?.blackAccuracy ?? 100.0);
       setIsModalOpen(false);
 
     } catch (err) {
@@ -363,28 +282,82 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
     return analyzedMoves[currentMoveIndex - 1] || null;
   }, [analyzedMoves, currentMoveIndex]);
 
+  const activeScoreType = useMemo<'cp' | 'mate'>(() => {
+    if (!activeMove) return 'cp';
+    const whiteCp = activeMove.evalCpAfter;
+    if (Math.abs(whiteCp) >= 15000) return 'mate';
+    return 'cp';
+  }, [activeMove]);
+
+  const activeScoreValue = useMemo<number>(() => {
+    if (!activeMove) return 0;
+    const whiteCp = activeMove.evalCpAfter;
+    if (Math.abs(whiteCp) >= 15000) {
+      const mateCount = Math.round((30000 - Math.abs(whiteCp)) / 100);
+      return whiteCp > 0 ? Math.max(1, mateCount) : -Math.max(1, mateCount);
+    }
+    return whiteCp;
+  }, [activeMove]);
+
   const boardSquareStyles = useMemo(() => {
     const styles: Record<string, React.CSSProperties> = {};
     if (!activeMove) return styles;
 
+    // Played move highlight (Cyan)
     styles[activeMove.from] = { backgroundColor: 'rgba(6, 182, 212, 0.4)' };
     styles[activeMove.to] = { backgroundColor: 'rgba(6, 182, 212, 0.6)' };
 
-    if (activeMove.bestMoveFrom && activeMove.bestMoveTo) {
-      styles[activeMove.bestMoveFrom] = { backgroundColor: 'rgba(16, 185, 129, 0.4)', borderRadius: '50%' };
-      styles[activeMove.bestMoveTo] = { backgroundColor: 'rgba(16, 185, 129, 0.6)', border: '2px dashed #10b981' };
+    // Highlight best move (Green)
+    const bestFrom = activeMove.bestMoveFrom || activeMove.from;
+    const bestTo = activeMove.bestMoveTo || activeMove.to;
+
+    if (bestFrom && bestTo && (bestFrom !== activeMove.from || bestTo !== activeMove.to)) {
+      styles[bestFrom] = { backgroundColor: 'rgba(16, 185, 129, 0.35)', borderRadius: '50%' };
+      styles[bestTo] = { backgroundColor: 'rgba(16, 185, 129, 0.5)', border: '2px dashed #10b981' };
     }
 
     return styles;
   }, [activeMove]);
 
+  // Always show Green Arrow for Stockfish Best Move
   const boardArrows = useMemo(() => {
     if (!activeMove) return [];
-    if (activeMove.bestMoveFrom && activeMove.bestMoveTo) {
-      return [{ startSquare: activeMove.bestMoveFrom, endSquare: activeMove.bestMoveTo, color: '#10b981' }];
+    const bestFrom = activeMove.bestMoveFrom || activeMove.from;
+    const bestTo = activeMove.bestMoveTo || activeMove.to;
+
+    if (bestFrom && bestTo) {
+      return [{ startSquare: bestFrom, endSquare: bestTo, color: '#10b981' }];
     }
     return [];
   }, [activeMove]);
+
+  // Structured Move Log Rows
+  const moveLogRows = useMemo(() => {
+    const rows: Array<{
+      moveNumber: number;
+      whiteIndex?: number;
+      whiteSan?: string;
+      whiteBadge?: MoveClassification;
+      blackIndex?: number;
+      blackSan?: string;
+      blackBadge?: MoveClassification;
+    }> = [];
+
+    for (let i = 0; i < analyzedMoves.length; i += 2) {
+      const wMove = analyzedMoves[i];
+      const bMove = analyzedMoves[i + 1];
+      rows.push({
+        moveNumber: Math.floor(i / 2) + 1,
+        whiteIndex: i + 1,
+        whiteSan: wMove?.san,
+        whiteBadge: wMove?.classification,
+        blackIndex: bMove ? i + 2 : undefined,
+        blackSan: bMove?.san,
+        blackBadge: bMove?.classification,
+      });
+    }
+    return rows;
+  }, [analyzedMoves]);
 
   useEffect(() => {
     let interval: any = null;
@@ -403,19 +376,28 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
     return () => clearInterval(interval);
   }, [isPlaying, analyzedMoves.length]);
 
+  useEffect(() => {
+    if (scrollRef.current && currentMoveIndex > 0) {
+      const activeEl = scrollRef.current.querySelector('[data-active="true"]');
+      if (activeEl) {
+        activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  }, [currentMoveIndex]);
+
   return (
     <div className="w-full max-w-7xl mx-auto p-4 md:p-6 space-y-6 animate-in fade-in duration-300">
 
-      {/* PGN Input Modal Dialog Box with Live Analysis Progress Bar */}
+      {/* PGN Input Modal Dialog Box */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="Analyze Game with Stockfish & Win-Drop Model"
+        title="Analyze Game with Stockfish Engine"
         className="max-w-xl"
       >
         <div className="space-y-5 py-2">
           <p className="text-xs text-slate-400">
-            Paste your PGN below to analyze game accuracy, Stockfish evaluation, Principal Variation (PV), Win Drop %, and 10-tier move quality classifications.
+            Paste your PGN below to analyze game accuracy, move quality, best engine moves, and interactive move history.
           </p>
 
           <div className="space-y-2">
@@ -487,7 +469,7 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
               ) : (
                 <>
                   <Sparkles className="w-4 h-4" />
-                  <span>Start Win-Drop Analysis</span>
+                  <span>Start Game Analysis</span>
                 </>
               )}
             </Button>
@@ -500,8 +482,15 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
         
         {/* LEFT COLUMN: Interactive Chessboard */}
         <div className="lg:col-span-6 flex flex-col items-center gap-4">
-          <div className="relative rounded-3xl p-3.5 glass-card border border-slate-700/80 shadow-2xl shadow-emerald-500/10 w-full max-w-[500px]">
-            <div className="w-full aspect-square rounded-2xl overflow-hidden shadow-2xl border border-slate-800">
+          <div className="relative rounded-3xl p-3.5 glass-card border border-slate-700/80 shadow-2xl shadow-emerald-500/10 w-full max-w-[530px] flex items-center gap-3">
+            {/* Real-time Vertical Evaluation Bar */}
+            <EvaluationBar
+              scoreType={activeScoreType}
+              scoreValue={activeScoreValue}
+              isFlipped={isFlipped}
+            />
+
+            <div className="relative w-full aspect-square rounded-2xl overflow-hidden shadow-2xl border border-slate-800 flex-1">
               <Chessboard
                 options={{
                   position: activePositionFen,
@@ -513,6 +502,35 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
                   allowDragging: false,
                 }}
               />
+
+              {/* Piece Quality Badge Mark Overlay on Target Square */}
+              {activeMove && (
+                <div className="absolute inset-0 pointer-events-none z-10">
+                  {(() => {
+                    const { leftPercent, topPercent } = getSquarePercent(activeMove.to, isFlipped);
+                    const badgeInfo = getClassificationBadge(activeMove.classification);
+
+                    return (
+                      <div
+                        style={{
+                          left: `${leftPercent}%`,
+                          top: `${topPercent}%`,
+                          width: '12.5%',
+                          height: '12.5%',
+                        }}
+                        className="absolute flex items-start justify-end p-0.5"
+                      >
+                        <div
+                          className={`flex items-center justify-center font-mono font-black text-[11px] min-w-[22px] h-[22px] px-1 rounded-full border-2 border-slate-950 animate-in zoom-in-50 duration-200 ${badgeInfo.className}`}
+                          title={`${badgeInfo.label} (${activeMove.san})`}
+                        >
+                          {badgeInfo.symbol}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
           </div>
 
@@ -539,11 +557,11 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Accuracy Cards, Navigation, Metrics & Analysis Panel */}
+        {/* RIGHT COLUMN: Accuracy Cards, Navigation & Move Logs */}
         <div className="lg:col-span-6 space-y-4">
           
-          {/* Accuracy Summary Cards (Formula 5) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
+          {/* Accuracy Summary Header Cards */}
+          <div className="grid grid-cols-2 gap-4 w-full">
             <div className="glass-card border border-slate-800 rounded-2xl p-4 shadow-xl flex items-center justify-between">
               <div>
                 <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider block">
@@ -553,10 +571,8 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
                   {whiteAccuracy}%
                 </span>
               </div>
-              <div className="text-right text-[11px] space-y-0.5 font-mono">
-                <div className="text-cyan-300">📖 {stats.wBook} ‼️ {stats.wBrilliant} 🌟 {stats.wGreat}</div>
-                <div className="text-emerald-300">✨ {stats.wBest} 👌 {stats.wExcellent} 👍 {stats.wGood}</div>
-                <div className="text-rose-400">⚠️ {stats.wInacc} ⚡ {stats.wMistake} ❌ {stats.wBlunder}</div>
+              <div className="w-10 h-10 rounded-full bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center font-mono font-bold text-cyan-400 text-sm">
+                ♔
               </div>
             </div>
 
@@ -569,10 +585,8 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
                   {blackAccuracy}%
                 </span>
               </div>
-              <div className="text-right text-[11px] space-y-0.5 font-mono">
-                <div className="text-cyan-300">📖 {stats.bBook} ‼️ {stats.bBrilliant} 🌟 {stats.bGreat}</div>
-                <div className="text-emerald-300">✨ {stats.bBest} 👌 {stats.bExcellent} 👍 {stats.bGood}</div>
-                <div className="text-rose-400">⚠️ {stats.bInacc} ⚡ {stats.bMistake} ❌ {stats.bBlunder}</div>
+              <div className="w-10 h-10 rounded-full bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center font-mono font-bold text-indigo-400 text-sm">
+                ♚
               </div>
             </div>
           </div>
@@ -643,91 +657,103 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
             </div>
           </div>
 
-          {/* Active Move Detail Cards */}
-          {activeMove ? (
-            <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4 animate-in fade-in">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-xl">
-                    {PIECE_SYMBOLS[activeMove.piece] || '♟'}
-                  </span>
-                  <div>
-                    <h2 className="text-base font-black font-mono text-white flex items-center gap-2">
-                      <span>Move {activeMove.moveNumber}: {activeMove.san}</span>
-                      <Badge type={activeMove.classification}>{activeMove.classification}</Badge>
-                    </h2>
-                    <span className="text-[11px] font-mono text-slate-400">
-                      Played by {activeMove.color === 'w' ? 'White' : 'Black'}
-                    </span>
+          {/* Active Move Quality Tag Banner */}
+          {activeMove && (
+            <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3 flex items-center justify-between shadow-lg font-mono">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">{PIECE_SYMBOLS[activeMove.piece] || '♟'}</span>
+                <div>
+                  <div className="text-xs font-bold text-white flex items-center gap-2">
+                    <span>Move {activeMove.moveNumber}: {activeMove.san}</span>
+                    <Badge type={activeMove.classification}>{activeMove.classification}</Badge>
                   </div>
-                </div>
-
-                <div className="text-right">
-                  <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block">
-                    Position Eval
-                  </span>
-                  <span className="text-base font-bold font-mono text-cyan-400">
-                    {activeMove.evalCpAfter >= 0 ? `+${(activeMove.evalCpAfter / 100).toFixed(2)}` : (activeMove.evalCpAfter / 100).toFixed(2)}
-                  </span>
+                  <span className="text-[10px] text-slate-400">Played by {activeMove.color === 'w' ? 'White' : 'Black'}</span>
                 </div>
               </div>
 
-              {/* Win Drop & Win Percentage Grid (Formulas 2 & 3) */}
-              <div className="grid grid-cols-3 gap-3 bg-slate-950 p-3.5 rounded-xl border border-slate-800 font-mono text-center">
-                <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-400 uppercase block">Win % Before</span>
-                  <span className="text-sm font-bold text-slate-200">{activeMove.winPercentageBefore}%</span>
+              {activeMove.bestMoveSan && activeMove.bestMoveSan !== activeMove.san && (
+                <div className="text-right text-[11px] font-mono text-emerald-400">
+                  <span>Best was: <strong className="text-emerald-300">{activeMove.bestMoveSan}</strong></span>
                 </div>
-                <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-400 uppercase block">Win % After</span>
-                  <span className="text-sm font-bold text-slate-200">{activeMove.winPercentageAfter}%</span>
-                </div>
-                <div className="space-y-0.5">
-                  <span className="text-[10px] text-rose-400 font-bold uppercase block flex items-center justify-center gap-1">
-                    <TrendingDown className="w-3 h-3" /> Win Drop
-                  </span>
-                  <span className={`text-sm font-black ${activeMove.winDrop > 10 ? 'text-rose-400' : activeMove.winDrop > 2 ? 'text-amber-300' : 'text-emerald-400'}`}>
-                    {activeMove.winDrop}%
-                  </span>
-                </div>
-              </div>
-
-              {/* Engine Recommendation Card */}
-              <div className="bg-emerald-950/30 border border-emerald-500/40 rounded-xl p-4 space-y-2 shadow-lg">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-mono font-bold text-emerald-400 uppercase tracking-wider block flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    Stockfish Best Move Recommendation
-                  </span>
-                  <span className="text-[11px] font-mono text-emerald-400">
-                    Green Arrow ({activeMove.bestMoveFrom} ➔ {activeMove.bestMoveTo})
-                  </span>
-                </div>
-
-                <div className="text-lg font-black font-mono text-emerald-300">
-                  {activeMove.bestMoveSan || activeMove.san}
-                </div>
-
-                {activeMove.pv && (
-                  <div className="pt-2 border-t border-emerald-500/20 text-xs font-mono text-slate-300 space-y-1">
-                    <span className="text-[10px] text-emerald-400 font-bold uppercase block">
-                      Principal Variation (PV Line):
-                    </span>
-                    <p className="text-[11px] text-slate-300 bg-slate-950 p-2 rounded-lg border border-slate-800 leading-relaxed font-mono">
-                      {activeMove.pv}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-8 text-center text-xs text-slate-400 font-mono space-y-2">
-              <Sparkles className="w-6 h-6 text-emerald-400 mx-auto" />
-              <p>Step through moves to view Win Percentage, Win Drop %, Stockfish PV lines, and quality tags.</p>
+              )}
             </div>
           )}
+
+          {/* Move History Log */}
+          <div className="glass-card rounded-2xl border border-slate-800 p-4 shadow-xl flex flex-col h-[340px]">
+            <div className="flex items-center justify-between pb-3 mb-2 border-b border-slate-800 text-xs font-bold text-slate-300">
+              <div className="flex items-center gap-2">
+                <History className="w-4 h-4 text-cyan-400" />
+                <span>Move History Log</span>
+              </div>
+              <span className="px-2 py-0.5 rounded-full bg-slate-950 text-[10px] font-mono text-cyan-400 border border-slate-800">
+                {analyzedMoves.length} Moves
+              </span>
+            </div>
+
+            <div className="grid grid-cols-12 gap-2 text-[10px] font-mono uppercase font-bold text-slate-500 pb-2 px-2 border-b border-slate-800/50">
+              <span className="col-span-2">#</span>
+              <span className="col-span-5">White</span>
+              <span className="col-span-5">Black</span>
+            </div>
+
+            <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-1 pt-2 pr-1 font-mono text-xs">
+              {moveLogRows.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-slate-500 italic text-xs space-y-1">
+                  <span>No analyzed moves</span>
+                  <span className="text-[10px] text-slate-600">Load a PGN to analyze match history</span>
+                </div>
+              ) : (
+                moveLogRows.map((row) => (
+                  <div
+                    key={row.moveNumber}
+                    className="grid grid-cols-12 gap-2 items-center py-1 px-2 rounded-xl hover:bg-slate-800/50 transition-colors"
+                  >
+                    <span className="col-span-2 text-slate-500 font-bold">{row.moveNumber}.</span>
+
+                    {/* White Move Button */}
+                    {row.whiteSan ? (
+                      <button
+                        onClick={() => row.whiteIndex && setCurrentMoveIndex(row.whiteIndex)}
+                        data-active={currentMoveIndex === row.whiteIndex}
+                        className={`col-span-5 flex items-center justify-between px-2 py-1 rounded-lg text-left font-bold transition-all cursor-pointer ${
+                          currentMoveIndex === row.whiteIndex
+                            ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 shadow-md shadow-cyan-500/10'
+                            : 'text-slate-200 hover:bg-slate-800 hover:text-white'
+                        }`}
+                      >
+                        <span>{row.whiteSan}</span>
+                        {row.whiteBadge && <Badge type={row.whiteBadge}>{getClassificationBadge(row.whiteBadge).symbol}</Badge>}
+                      </button>
+                    ) : (
+                      <span className="col-span-5" />
+                    )}
+
+                    {/* Black Move Button */}
+                    {row.blackSan ? (
+                      <button
+                        onClick={() => row.blackIndex && setCurrentMoveIndex(row.blackIndex)}
+                        data-active={currentMoveIndex === row.blackIndex}
+                        className={`col-span-5 flex items-center justify-between px-2 py-1 rounded-lg text-left font-bold transition-all cursor-pointer ${
+                          currentMoveIndex === row.blackIndex
+                            ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/50 shadow-md shadow-indigo-500/10'
+                            : 'text-slate-200 hover:bg-slate-800 hover:text-white'
+                        }`}
+                      >
+                        <span>{row.blackSan}</span>
+                        {row.blackBadge && <Badge type={row.blackBadge}>{getClassificationBadge(row.blackBadge).symbol}</Badge>}
+                      </button>
+                    ) : (
+                      <span className="col-span-5" />
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
   );
 };
+

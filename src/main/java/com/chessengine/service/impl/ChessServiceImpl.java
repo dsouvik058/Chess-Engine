@@ -32,9 +32,9 @@ public class ChessServiceImpl implements ChessService {
         if (scoreValue == null) return 0;
         if ("mate".equalsIgnoreCase(scoreType)) {
             if (scoreValue > 0) {
-                return 10000 - Math.min(scoreValue, 99) * 100;
+                return 30000 - Math.min(scoreValue, 99) * 100;
             } else {
-                return -10000 + Math.min(Math.abs(scoreValue), 99) * 100;
+                return -30000 + Math.min(Math.abs(scoreValue), 99) * 100;
             }
         }
         return scoreValue;
@@ -75,46 +75,105 @@ public class ChessServiceImpl implements ChessService {
 
         double lastOpponentWinDrop = 0.0;
 
+        // Evaluation cache: the position after move i is the same as the position before move i+1.
+        // By evaluating that position once (with MultiPV=2) and caching the result, we can reuse it
+        // as evalBefore for move i+1 — reducing total engine calls from 2N to roughly N+1.
+        GameStatusDTO cachedEvalForNextBefore = null;
+
+        List<String> sanMoves = request.getSanMoves();
+
         for (int i = 0; i < moves.size(); i++) {
             String playerColor = (i % 2 == 0) ? "white" : "black";
             int moveNum = (i / 2) + 1;
-            List<String> movesBefore = moves.subList(0, i);
             List<String> movesAfter = moves.subList(0, i + 1);
+            List<String> sanAfter = (sanMoves != null && sanMoves.size() >= i + 1) ? sanMoves.subList(0, i + 1) : movesAfter;
 
-            // 1. Evaluate position BEFORE move i (active player perspective, MultiPV = 2)
-            GameStatusDTO evalBefore = engineManager.calculateBestMove(
-                    request.getFen(),
-                    new ArrayList<>(movesBefore),
-                    movetime,
-                    request.getDepth(),
-                    elo,
-                    2
-            );
-
-            // 2. Evaluate position AFTER move i (opponent perspective, MultiPV = 1)
-            GameStatusDTO evalAfter = engineManager.calculateBestMove(
-                    request.getFen(),
-                    new ArrayList<>(movesAfter),
-                    movetime,
-                    request.getDepth(),
-                    elo,
-                    1
-            );
-
-            int cpBefore = scoreToCentipawns(evalBefore.getScoreType(), evalBefore.getScoreValue());
-            int cpAfterOpponent = scoreToCentipawns(evalAfter.getScoreType(), evalAfter.getScoreValue());
-            int cpAfterPlayer = -cpAfterOpponent;
-
-            double winPctBefore = calculateWinPercentage(cpBefore);
-            double winPctAfter = calculateWinPercentage(cpAfterPlayer);
-            double winDrop = Math.max(0.0, winPctBefore - winPctAfter);
-
-            double winPct2ndBest = winPctBefore;
-            if (evalBefore.getSecondScoreValue() != null) {
-                int cp2nd = scoreToCentipawns(evalBefore.getSecondScoreType(), evalBefore.getSecondScoreValue());
-                winPct2ndBest = calculateWinPercentage(cp2nd);
+            // --- 1. Book move check: skip engine calls entirely for known opening theory ---
+            boolean isBook = OpeningBook.isBookMove(sanAfter);
+            if (isBook) {
+                cachedEvalForNextBefore = null; // Invalidate cache — no eval computed
+                evaluations.add(MoveAnalysisDTO.builder()
+                        .moveIndex(i + 1)
+                        .moveNumber(moveNum)
+                        .playerColor(playerColor)
+                        .move(moves.get(i))
+                        .evaluation("+0.20")
+                        .scoreType("cp")
+                        .scoreValue(20)
+                        .evalCpBefore(20)
+                        .evalCpAfter(20)
+                        .winPercentageBefore(52.5)
+                        .winPercentageAfter(52.5)
+                        .classification("book")
+                        .winDrop(0.0)
+                        .build());
+                if ("white".equals(playerColor)) {
+                    whiteWinDrops.add(0.0);
+                    wBook++;
+                } else {
+                    blackWinDrops.add(0.0);
+                    bBook++;
+                }
+                continue;
             }
-            double winDrop2ndBest = Math.max(0.0, winPctBefore - winPct2ndBest);
+
+            List<String> movesBefore = moves.subList(0, i);
+
+            // --- 2. Evaluate position BEFORE move i (active player perspective, MultiPV=2) ---
+            // Reuse cached evaluation from the previous iteration when available.
+            GameStatusDTO evalBefore;
+            if (cachedEvalForNextBefore != null) {
+                evalBefore = cachedEvalForNextBefore;
+            } else {
+                evalBefore = engineManager.calculateBestMove(
+                        request.getFen(),
+                        new ArrayList<>(movesBefore),
+                        movetime,
+                        request.getDepth(),
+                        elo,
+                        2
+                );
+            }
+
+            // --- 3. Evaluate position AFTER move i (opponent perspective) ---
+            // For non-last moves, evaluate with MultiPV=2 so the result can be cached
+            // as evalBefore for the next move. For the last move, MultiPV=1 suffices.
+            GameStatusDTO evalAfter;
+            boolean isLastMove = (i == moves.size() - 1);
+            if (!isLastMove) {
+                evalAfter = engineManager.calculateBestMove(
+                        request.getFen(),
+                        new ArrayList<>(movesAfter),
+                        movetime,
+                        request.getDepth(),
+                        elo,
+                        2
+                );
+                cachedEvalForNextBefore = evalAfter;
+            } else {
+                evalAfter = engineManager.calculateBestMove(
+                        request.getFen(),
+                        new ArrayList<>(movesAfter),
+                        movetime,
+                        request.getDepth(),
+                        elo,
+                        1
+                );
+                cachedEvalForNextBefore = null;
+            }
+
+            // UciProtocolHandler outputs evaluations normalized to White's perspective (+ = White, - = Black)
+            int cpBeforeWhite = scoreToCentipawns(evalBefore.getScoreType(), evalBefore.getScoreValue());
+            int cpAfterWhite = scoreToCentipawns(evalAfter.getScoreType(), evalAfter.getScoreValue());
+
+            // Compute win percentages relative to the active player
+            boolean isWhite = "white".equals(playerColor);
+            int playerCpBefore = isWhite ? cpBeforeWhite : -cpBeforeWhite;
+            int playerCpAfter = isWhite ? cpAfterWhite : -cpAfterWhite;
+
+            double winPctBefore = calculateWinPercentage(playerCpBefore);
+            double winPctAfter = calculateWinPercentage(playerCpAfter);
+            double winDrop = Math.max(0.0, winPctBefore - winPctAfter);
 
             String playedMoveStr = moves.get(i);
             String bestMoveUci = evalBefore.getBestMove();
@@ -122,33 +181,34 @@ public class ChessServiceImpl implements ChessService {
 
             boolean isBestMove = bestMoveUci != null && (playedMoveStr.equalsIgnoreCase(bestMoveUci) || bestMoveUci.contains(playedMoveStr));
 
+            // --- Move classification ---
             String classification;
-            boolean isBook = OpeningBook.isBookMove(movesAfter);
+            boolean isSacrifice = playedMoveStr.contains("x") || playedMoveStr.startsWith("Q") || playedMoveStr.startsWith("R");
 
-            if (isBook) {
-                classification = "book";
+            if (isBestMove) {
+                if (isSacrifice && winDrop <= 5.0) {
+                    classification = "brilliant";
+                } else if (winPctBefore < 95.0 && (i < 6 || playerCpBefore > 300)) {
+                    classification = "great";
+                } else {
+                    classification = "best";
+                }
                 winDrop = 0.0;
             } else {
-                boolean isSacrifice = playedMoveStr.contains("x") || playedMoveStr.startsWith("Q") || playedMoveStr.startsWith("R");
-                
-                if (isSacrifice && winDrop <= 2.0 && winPctBefore < 95.0) {
-                    classification = "brilliant";
-                } else if (isBestMove && winDrop2ndBest >= 10.0 && winPctBefore < 95.0) {
-                    classification = "great";
-                } else if (winDrop >= 10.0 && (winPctBefore >= 60.0 || lastOpponentWinDrop >= 15.0)) {
-                    classification = "miss";
-                } else if (winDrop <= 0.0001 || (isBestMove && winDrop <= 0.5)) {
-                    classification = "best";
-                } else if (winDrop <= 2.0) {
+                if (winDrop <= 2.0) {
                     classification = "excellent";
                 } else if (winDrop <= 5.0) {
                     classification = "good";
-                } else if (winDrop <= 10.0) {
+                } else if (winDrop <= 12.0) {
                     classification = "inaccuracy";
-                } else if (winDrop <= 20.0) {
+                } else if (winDrop <= 25.0) {
                     classification = "mistake";
                 } else {
-                    classification = "blunder";
+                    if (winPctBefore >= 65.0 || lastOpponentWinDrop >= 20.0) {
+                        classification = "miss";
+                    } else {
+                        classification = "blunder";
+                    }
                 }
             }
 
@@ -157,7 +217,6 @@ public class ChessServiceImpl implements ChessService {
             if ("white".equals(playerColor)) {
                 whiteWinDrops.add(winDrop);
                 switch (classification) {
-                    case "book" -> wBook++;
                     case "brilliant" -> wBrilliant++;
                     case "great" -> wGreat++;
                     case "best" -> wBest++;
@@ -171,7 +230,6 @@ public class ChessServiceImpl implements ChessService {
             } else {
                 blackWinDrops.add(winDrop);
                 switch (classification) {
-                    case "book" -> bBook++;
                     case "brilliant" -> bBrilliant++;
                     case "great" -> bGreat++;
                     case "best" -> bBest++;
@@ -195,9 +253,9 @@ public class ChessServiceImpl implements ChessService {
                     .pv(evalBefore.getPv())
                     .evaluation(evalAfter.getEvaluation())
                     .scoreType(evalAfter.getScoreType())
-                    .scoreValue(cpAfterPlayer)
-                    .evalCpBefore(cpBefore)
-                    .evalCpAfter(cpAfterPlayer)
+                    .scoreValue(cpAfterWhite)
+                    .evalCpBefore(cpBeforeWhite)
+                    .evalCpAfter(cpAfterWhite)
                     .winPercentageBefore(winPctBefore)
                     .winPercentageAfter(winPctAfter)
                     .winDrop(winDrop)

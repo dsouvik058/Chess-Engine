@@ -16,23 +16,21 @@ export const EvaluationBar: React.FC<EvaluationBarProps> = ({
 
   if (scoreType === 'mate') {
     if (scoreValue > 0) {
-      whitePercent = 100;
-      text = `#M${scoreValue}`;
+      whitePercent = 97;
+      text = `M${scoreValue}`;
     } else if (scoreValue < 0) {
-      whitePercent = 0;
-      text = `#M-${Math.abs(scoreValue)}`;
+      whitePercent = 3;
+      text = `-M${Math.abs(scoreValue)}`;
     } else {
       whitePercent = 50;
-      text = '#M0';
+      text = 'M0';
     }
   } else {
-    // Centipawn calculation
-    const clampedCp = Math.max(-1000, Math.min(1000, scoreValue));
-    const evalPawns = clampedCp / 100.0;
-    // Logistic curve for smooth evaluation bar
-    whitePercent = 50 + (evalPawns / 10.0) * 45.0;
-    whitePercent = Math.max(5, Math.min(95, whitePercent));
-    text = `${scoreValue >= 0 ? '+' : ''}${evalPawns.toFixed(1)}`;
+    // Non-linear logistic curve for natural visual representation of advantage
+    const winPct = 50.0 + 50.0 * (2.0 / (1.0 + Math.exp(-0.00368208 * scoreValue)) - 1.0);
+    whitePercent = Math.max(4, Math.min(96, winPct));
+    const evalPawns = scoreValue / 100.0;
+    text = `${scoreValue > 0 ? '+' : ''}${evalPawns.toFixed(1)}`;
   }
 
   const blackPercent = 100 - whitePercent;
@@ -49,13 +47,13 @@ export const EvaluationBar: React.FC<EvaluationBarProps> = ({
 
       {/* Top Layer */}
       <div
-        className={`absolute top-0 inset-x-0 ${topBgClass} transition-all duration-700 ease-out border-b border-slate-700/60 shadow-md`}
+        className={`absolute top-0 inset-x-0 ${topBgClass} transition-all duration-300 ease-out border-b border-slate-700/60 shadow-md`}
         style={{ height: `${topHeight}%` }}
       />
 
-      {/* Eval Label Pill */}
-      <div className="absolute inset-x-0 bottom-3 flex justify-center pointer-events-none z-10">
-        <span className="bg-slate-950/90 text-cyan-300 backdrop-blur-md px-1.5 py-0.5 rounded-lg text-[10px] font-mono font-black border border-cyan-500/40 shadow-xl tracking-tight">
+      {/* Eval Label Pill - Fixed at bottom of the evaluation bar */}
+      <div className="absolute inset-x-0 bottom-2 flex justify-center pointer-events-none z-10">
+        <span className="px-1.5 py-0.5 rounded-md text-[9px] font-mono font-black tracking-tight shadow-md border bg-slate-950/90 text-cyan-300 border-cyan-500/40 backdrop-blur-sm">
           {text}
         </span>
       </div>
