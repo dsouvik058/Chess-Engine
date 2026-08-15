@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface EvaluationBarProps {
   scoreType?: 'cp' | 'mate';
@@ -37,28 +38,60 @@ export const EvaluationBar: React.FC<EvaluationBarProps> = ({
 
   // Determine top height and colors based on orientation
   const topHeight = isFlipped ? whitePercent : blackPercent;
-  const topBgClass = isFlipped ? 'bg-gradient-to-b from-slate-100 to-slate-200' : 'bg-slate-950';
-  const bottomBgClass = isFlipped ? 'bg-slate-950' : 'bg-gradient-to-t from-slate-100 to-slate-200';
+  const topBgClass = isFlipped ? 'bg-gradient-to-b from-slate-100 via-slate-200 to-slate-100' : 'bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950';
+  const bottomBgClass = isFlipped ? 'bg-gradient-to-t from-slate-950 via-slate-900 to-slate-950' : 'bg-gradient-to-t from-slate-100 via-slate-200 to-white';
+
+  const isMate = scoreType === 'mate';
+  const isHighAdvantage = Math.abs(scoreValue) > 300 || isMate;
 
   return (
-    <div className="relative w-6 sm:w-7 h-[380px] sm:h-[440px] md:h-[480px] rounded-xl overflow-hidden bg-slate-950 border border-slate-800 shadow-xl flex-shrink-0 select-none">
+    <div
+      className={`relative w-6 sm:w-7 h-[380px] sm:h-[440px] md:h-[480px] rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-2xl flex-shrink-0 select-none transition-shadow duration-500 ${
+        isMate
+          ? 'shadow-rose-500/20 border-rose-500/40'
+          : isHighAdvantage
+          ? 'shadow-cyan-500/20 border-cyan-500/40'
+          : 'shadow-slate-900/60'
+      }`}
+    >
       {/* Bottom Layer */}
       <div className={`absolute inset-0 ${bottomBgClass}`} />
 
-      {/* Top Layer */}
-      <div
-        className={`absolute top-0 inset-x-0 ${topBgClass} transition-all duration-300 ease-out border-b border-slate-700/60 shadow-md`}
-        style={{ height: `${topHeight}%` }}
-      />
+      {/* Top Animated Layer with Spring Physics */}
+      <motion.div
+        className={`absolute top-0 inset-x-0 ${topBgClass} border-b border-cyan-400/80 shadow-md`}
+        initial={false}
+        animate={{ height: `${topHeight}%` }}
+        transition={{ type: 'spring', stiffness: 75, damping: 16, mass: 0.8 }}
+      >
+        {/* Glow boundary wave */}
+        <div className="absolute bottom-0 inset-x-0 h-1 bg-cyan-400/70 blur-[1px]" />
+      </motion.div>
 
-      {/* Eval Label Pill - Fixed at bottom of the evaluation bar */}
+      {/* Eval Label Pill - Dynamic Animated Floating Badge */}
       <div className="absolute inset-x-0 bottom-2 flex justify-center pointer-events-none z-10">
-        <span className="px-1.5 py-0.5 rounded-md text-[9px] font-mono font-black tracking-tight shadow-md border bg-slate-950/90 text-cyan-300 border-cyan-500/40 backdrop-blur-sm">
-          {text}
-        </span>
+        <AnimatePresence mode="wait">
+          <motion.span
+            key={text}
+            initial={{ scale: 0.7, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.7, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 350, damping: 20 }}
+            className={`px-1.5 py-0.5 rounded-md text-[9px] font-mono font-black tracking-tight shadow-lg border backdrop-blur-md ${
+              isMate
+                ? 'bg-rose-950/90 text-rose-300 border-rose-500/60 animate-urgent'
+                : isHighAdvantage
+                ? 'bg-cyan-950/90 text-cyan-300 border-cyan-500/60'
+                : 'bg-slate-950/90 text-cyan-300 border-cyan-500/40'
+            }`}
+          >
+            {text}
+          </motion.span>
+        </AnimatePresence>
       </div>
     </div>
   );
 };
+
 
 

@@ -17,6 +17,7 @@
     "canvas-confetti": "^1.9.4",
     "chess.js": "^1.4.0",
     "clsx": "^2.1.1",
+    "framer-motion": "^13.1.0",
     "lucide-react": "^1.27.0",
     "react": "^19.2.7",
     "react-chessboard": "^5.10.0",
