@@ -180,40 +180,55 @@ public class ChessServiceImpl implements ChessService {
             String bestMoveUci = evalBefore.getBestMove();
             String secondBestMoveUci = evalBefore.getSecondBestMove();
 
-            boolean isBestMove = bestMoveUci != null && (
-                    playedMoveStr.equalsIgnoreCase(bestMoveUci) ||
-                    bestMoveUci.contains(playedMoveStr) ||
-                    playedMoveStr.startsWith(bestMoveUci)
-            );
+            boolean isExactBestMove = isSameUciMove(playedMoveStr, bestMoveUci);
+
+            // --- MultiPV Gap for "Great Move" (Only good move in position) ---
+            boolean isOnlyMove = false;
+            if (evalBefore.getSecondScoreValue() != null && evalBefore.getSecondScoreType() != null) {
+                int cpSecondWhite = scoreToCentipawns(evalBefore.getSecondScoreType(), evalBefore.getSecondScoreValue());
+                int playerCpSecond = isWhite ? cpSecondWhite : -cpSecondWhite;
+                double winPctSecond = calculateWinPercentage(playerCpSecond);
+                double pvGap = Math.max(0.0, winPctBefore - winPctSecond);
+
+                // If the gap between PV1 and PV2 is >= 12% win expectation (or >= 150 CP), and position was not trivial
+                if (pvGap >= 12.0 && winPctBefore < 95.0) {
+                    isOnlyMove = true;
+                }
+            }
 
             // --- Move classification ---
             String classification;
-            boolean isTrueSacrifice = isStrictSacrifice(sanStr, playedMoveStr, i, moves, evalBefore, evalAfter, playerCpAfter);
+            boolean isForcedMate = "mate".equalsIgnoreCase(evalBefore.getScoreType()) || "mate".equalsIgnoreCase(evalAfter.getScoreType());
+            boolean isAlreadyCrushing = !isForcedMate && (winPctBefore >= 98.0 || playerCpBefore >= 600);
+            boolean isTrueSacrifice = !isAlreadyCrushing && isStrictSacrifice(sanStr, playedMoveStr, i, moves, evalBefore, evalAfter, playerCpAfter);
 
-            if (isBestMove || winDrop <= 1.0) {
+            if (isExactBestMove) {
                 if (isTrueSacrifice) {
                     classification = "brilliant";
-                } else if (winPctBefore < 90.0 && playerCpBefore < 100 && playerCpAfter >= 250) {
+                } else if (isOnlyMove) {
                     classification = "great";
                 } else {
                     classification = "best";
                 }
                 winDrop = 0.0;
+            } else if (winDrop <= 2.0) {
+                classification = "excellent";
+            } else if (winDrop <= 5.0) {
+                classification = "good";
+            } else if (winDrop <= 10.0) {
+                classification = "inaccuracy";
+            } else if (winDrop <= 20.0) {
+                classification = "mistake";
             } else {
-                if (winDrop <= 3.0) {
-                    classification = "excellent";
-                } else if (winDrop <= 8.0) {
-                    classification = "good";
-                } else if (winDrop <= 15.0) {
-                    classification = "inaccuracy";
-                } else if (winDrop <= 28.0) {
-                    classification = "mistake";
+                // Severe drop (> 20.0% WinDrop):
+                // Missed Win / Missed Tactic: Player failed to capitalize on opponent's mistake or threw away a forced mate / winning advantage.
+                boolean isMissedWinOrTactic = lastOpponentWinDrop >= 10.0 ||
+                                              "mate".equalsIgnoreCase(evalBefore.getScoreType()) ||
+                                              playerCpBefore >= 300;
+                if (isMissedWinOrTactic) {
+                    classification = "miss";
                 } else {
-                    if (winPctBefore >= 65.0 || lastOpponentWinDrop >= 20.0) {
-                        classification = "miss";
-                    } else {
-                        classification = "blunder";
-                    }
+                    classification = "blunder";
                 }
             }
 
@@ -374,5 +389,17 @@ public class ChessServiceImpl implements ChessService {
 
         return false;
     }
+
+    private boolean isSameUciMove(String move1, String move2) {
+        if (move1 == null || move2 == null) return false;
+        String m1 = move1.trim().toLowerCase();
+        String m2 = move2.trim().toLowerCase();
+        if (m1.equals(m2)) return true;
+        // Handle promotion notation (e.g. e7e8q vs e7e8)
+        if (m1.length() == 4 && m2.length() == 5 && m2.startsWith(m1)) return true;
+        if (m2.length() == 4 && m1.length() == 5 && m1.startsWith(m2)) return true;
+        return false;
+    }
 }
+
 
