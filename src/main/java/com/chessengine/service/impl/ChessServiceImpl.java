@@ -176,32 +176,37 @@ public class ChessServiceImpl implements ChessService {
             double winDrop = Math.max(0.0, winPctBefore - winPctAfter);
 
             String playedMoveStr = moves.get(i);
+            String sanStr = (sanMoves != null && sanMoves.size() > i) ? sanMoves.get(i) : playedMoveStr;
             String bestMoveUci = evalBefore.getBestMove();
             String secondBestMoveUci = evalBefore.getSecondBestMove();
 
-            boolean isBestMove = bestMoveUci != null && (playedMoveStr.equalsIgnoreCase(bestMoveUci) || bestMoveUci.contains(playedMoveStr));
+            boolean isBestMove = bestMoveUci != null && (
+                    playedMoveStr.equalsIgnoreCase(bestMoveUci) ||
+                    bestMoveUci.contains(playedMoveStr) ||
+                    playedMoveStr.startsWith(bestMoveUci)
+            );
 
             // --- Move classification ---
             String classification;
-            boolean isSacrifice = playedMoveStr.contains("x") || playedMoveStr.startsWith("Q") || playedMoveStr.startsWith("R");
+            boolean isTrueSacrifice = isStrictSacrifice(sanStr, playedMoveStr, i, moves, evalBefore, evalAfter, playerCpAfter);
 
-            if (isBestMove) {
-                if (isSacrifice && winDrop <= 5.0) {
+            if (isBestMove || winDrop <= 1.0) {
+                if (isTrueSacrifice) {
                     classification = "brilliant";
-                } else if (winPctBefore < 95.0 && (i < 6 || playerCpBefore > 300)) {
+                } else if (winPctBefore < 90.0 && playerCpBefore < 100 && playerCpAfter >= 250) {
                     classification = "great";
                 } else {
                     classification = "best";
                 }
                 winDrop = 0.0;
             } else {
-                if (winDrop <= 2.0) {
+                if (winDrop <= 3.0) {
                     classification = "excellent";
-                } else if (winDrop <= 5.0) {
+                } else if (winDrop <= 8.0) {
                     classification = "good";
-                } else if (winDrop <= 12.0) {
+                } else if (winDrop <= 15.0) {
                     classification = "inaccuracy";
-                } else if (winDrop <= 25.0) {
+                } else if (winDrop <= 28.0) {
                     classification = "mistake";
                 } else {
                     if (winPctBefore >= 65.0 || lastOpponentWinDrop >= 20.0) {
@@ -310,4 +315,64 @@ public class ChessServiceImpl implements ChessService {
     public boolean isEngineRunning() {
         return engineManager.isAlive();
     }
+
+    /**
+     * Strict Brilliant Move (!!) Detector following standard chess sacrifice principles:
+     * 1. Never fires in opening book / routine opening development (first 6 full moves / 12 half-moves).
+     * 2. Must involve giving up major/minor material or playing a sacrificial invasion (Q, R, B, N).
+     * 3. Must retain a winning or forced-mate tactical evaluation without blundering.
+     */
+    private boolean isStrictSacrifice(String san, String uci, int moveIndex, List<String> moves, GameStatusDTO evalBefore, GameStatusDTO evalAfter, int playerCpAfter) {
+        if (moveIndex < 12) return false; // Early game opening development is never brilliant
+        if (san == null || san.isEmpty()) return false;
+
+        // 1. Check if this move is just recapturing on the same square where opponent captured on previous turn
+        if (moveIndex > 0 && uci != null && uci.length() >= 4 && moves != null && moves.size() > moveIndex - 1) {
+            String prevUci = moves.get(moveIndex - 1);
+            if (prevUci != null && prevUci.length() >= 4) {
+                String myTarget = uci.substring(2, 4);
+                String prevTarget = prevUci.substring(2, 4);
+                if (myTarget.equals(prevTarget)) {
+                    return false; // Equal recapture / trade on the same square is not a sacrifice
+                }
+            }
+        }
+
+        boolean isForcedMate = "mate".equalsIgnoreCase(evalAfter.getScoreType()) || "mate".equalsIgnoreCase(evalBefore.getScoreType());
+
+        // 2. Check if the piece played was actually captured by the opponent on the very next ply (True Piece Sacrifice)
+        // e.g. 24. Nxf6+ followed by 24... gxf6 (Knight sacrificed on f6), 29. Rxf6+ followed by 29... Qxf6 (Rook sacrificed on f6)
+        if (uci != null && uci.length() >= 4 && moves != null && moveIndex + 1 < moves.size()) {
+            String nextUci = moves.get(moveIndex + 1);
+            if (nextUci != null && nextUci.length() >= 4) {
+                String myTarget = uci.substring(2, 4);
+                String nextTarget = nextUci.substring(2, 4);
+                if (myTarget.equals(nextTarget)) {
+                    // The opponent captured our piece on this target square on their next turn!
+                    // If it was a Major/Minor piece and we are winning, this was a genuine sacrifice!
+                    if (san.startsWith("N") || san.startsWith("B") || san.startsWith("R") || san.startsWith("Q")) {
+                        return isForcedMate || playerCpAfter >= 150;
+                    }
+                }
+            }
+        }
+
+        // 3. Queen sacrifice into an undefended piece or square (Qx, Qxe5, Qxf6, etc.)
+        if (san.startsWith("Qxe") || san.startsWith("Qxf") || san.startsWith("Qxg") || san.startsWith("Qxd") || san.startsWith("Qxc")) {
+            return isForcedMate || playerCpAfter >= 150;
+        }
+
+        // 4. Exchange sacrifice: Rook takes pawn/minor piece with check or mate (Rxf6+, Rxg7+, Rxh7+)
+        if ((san.startsWith("Rxf") || san.startsWith("Rxg") || san.startsWith("Rxh")) && (isForcedMate || (playerCpAfter >= 200 && san.contains("+")))) {
+            return true;
+        }
+
+        // 5. Minor piece sacrifice with check (Nxf6+, Bxf7+, Bxh7+)
+        if ((san.startsWith("Nxf") || san.startsWith("Bxf") || san.startsWith("Bxh")) && (san.contains("+") || isForcedMate || playerCpAfter >= 250)) {
+            return true;
+        }
+
+        return false;
+    }
 }
+

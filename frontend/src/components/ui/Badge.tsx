@@ -11,18 +11,18 @@ interface BadgeProps {
 
 export const Badge: React.FC<BadgeProps> = ({ type, children, className }) => {
   const styles: Record<string, string> = {
-    brilliant: 'bg-cyan-500/25 text-cyan-300 border-cyan-400 font-extrabold shadow-md shadow-cyan-500/40 uppercase tracking-wide',
-    great: 'bg-blue-500/25 text-blue-300 border-blue-400 font-bold shadow-md shadow-blue-500/30 uppercase tracking-wide',
-    best: 'bg-emerald-500/25 text-emerald-300 border-emerald-400 font-bold shadow-md shadow-emerald-500/30 uppercase tracking-wide',
-    excellent: 'bg-teal-500/25 text-teal-300 border-teal-400 font-semibold shadow-sm shadow-teal-500/20 uppercase tracking-wide',
-    good: 'bg-green-500/20 text-green-300 border-green-500/30 font-medium',
-    inaccuracy: 'bg-amber-500/20 text-amber-300 border-amber-500/30 font-medium',
-    mistake: 'bg-orange-500/25 text-orange-300 border-orange-400 font-semibold shadow-sm shadow-orange-500/20',
-    blunder: 'bg-rose-500/30 text-rose-300 border-rose-500/50 font-extrabold shadow-md shadow-rose-500/30 uppercase animate-urgent',
-    book: 'bg-amber-700/30 text-amber-200 border-amber-600/40 font-semibold uppercase',
-    miss: 'bg-purple-500/25 text-purple-300 border-purple-400 font-bold shadow-md shadow-purple-500/30 uppercase tracking-wide',
-    status: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
-    info: 'bg-slate-800 text-slate-300 border-slate-700',
+    brilliant: 'bg-teal-100 text-teal-900 border-teal-400 font-black shadow-sm uppercase tracking-wide',
+    great: 'bg-blue-100 text-blue-900 border-blue-400 font-bold shadow-sm uppercase tracking-wide',
+    best: 'bg-emerald-100 text-emerald-900 border-emerald-400 font-bold shadow-sm uppercase tracking-wide',
+    excellent: 'bg-emerald-50 text-emerald-800 border-emerald-300 font-semibold uppercase tracking-wide',
+    good: 'bg-green-50 text-green-800 border-green-300 font-medium',
+    inaccuracy: 'bg-amber-100 text-amber-900 border-amber-400 font-medium',
+    mistake: 'bg-orange-100 text-orange-900 border-orange-400 font-semibold',
+    blunder: 'bg-rose-100 text-rose-900 border-rose-400 font-extrabold shadow-sm uppercase animate-urgent',
+    book: 'bg-amber-100 text-amber-900 border-amber-400 font-semibold uppercase',
+    miss: 'bg-purple-100 text-purple-900 border-purple-400 font-bold uppercase tracking-wide',
+    status: 'bg-indigo-100 text-indigo-900 border-indigo-300',
+    info: 'bg-slate-100 text-slate-800 border-slate-300',
   };
 
   return (
@@ -32,7 +32,7 @@ export const Badge: React.FC<BadgeProps> = ({ type, children, className }) => {
       transition={{ type: 'spring', stiffness: 400, damping: 20 }}
       whileHover={{ scale: 1.08 }}
       className={cn(
-        'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs border transition-all duration-150',
+        'inline-flex items-center px-2 py-0.5 rounded-full text-[11px] border font-bold transition-all duration-150',
         styles[type] || styles.info,
         className
       )}
@@ -41,4 +41,5 @@ export const Badge: React.FC<BadgeProps> = ({ type, children, className }) => {
     </motion.span>
   );
 };
+
 

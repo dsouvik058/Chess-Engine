@@ -19,7 +19,7 @@ const FloatingAmbientPieces: React.FC = () => (
     {PIECE_GLYPHS.map((glyph, i) => (
       <motion.div
         key={i}
-        className="absolute text-3xl font-serif text-cyan-400/10"
+        className="absolute text-4xl font-serif text-amber-800/10 select-none"
         style={{
           left: `${(i * 8.3 + 3) % 94}%`,
           top: `${(i * 15 + 8) % 88}%`,
@@ -27,10 +27,10 @@ const FloatingAmbientPieces: React.FC = () => (
         animate={{
           y: [0, -18, 0],
           rotate: [0, i % 2 === 0 ? 12 : -12, 0],
-          opacity: [0.03, 0.08, 0.03],
+          opacity: [0.08, 0.18, 0.08],
         }}
         transition={{
-          duration: 4.5 + (i % 3),
+          duration: 5 + (i % 3),
           repeat: Infinity,
           ease: 'easeInOut',
           delay: i * 0.3,
@@ -59,17 +59,17 @@ export const WelcomePage: React.FC<WelcomePageProps> = ({
         transition={{ duration: 0.5, ease: 'easeOut' }}
         className="text-center space-y-3.5 relative z-10"
       >
-        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-mono font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 shadow-sm">
-          <Sparkles className="w-3.5 h-3.5 text-cyan-400 animate-spin" />
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-mono font-bold bg-amber-100 text-amber-900 border border-amber-300 shadow-sm">
+          <Sparkles className="w-3.5 h-3.5 text-amber-700 animate-spin" />
           <span>GRANDMASTER'S FORGE • STOCKFISH 18 ENGINE</span>
         </div>
-        <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight text-white leading-tight">
+        <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight text-slate-900 leading-tight font-serif-classic">
           Welcome,{' '}
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-indigo-400 to-purple-400">
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-700 via-amber-600 to-indigo-800">
             {user?.name || 'Grandmaster'}
           </span>!
         </h1>
-        <p className="text-slate-300 text-sm md:text-base max-w-2xl mx-auto leading-relaxed font-normal">
+        <p className="text-slate-600 text-sm md:text-base max-w-2xl mx-auto leading-relaxed font-normal">
           Step onto the digital chessboard. Sharpen your tactical vision against Stockfish 18 AI, battle rivals in real-time 1v1 multiplayer, or analyze your move accuracy and blunders.
         </p>
       </motion.div>
@@ -85,31 +85,31 @@ export const WelcomePage: React.FC<WelcomePageProps> = ({
           whileTap={{ scale: 0.98 }}
           className="h-full"
         >
-          <Card className="relative overflow-hidden group hover:border-cyan-500/60 transition-all duration-300 flex flex-col justify-between p-7 bg-slate-900/80 border-slate-800 shadow-2xl h-full shimmer-card">
-            <div className="absolute top-0 right-0 w-36 h-36 bg-cyan-500/10 rounded-full blur-2xl group-hover:bg-cyan-500/25 transition-all" />
+          <Card className="relative overflow-hidden group hover:border-amber-500/70 transition-all duration-300 flex flex-col justify-between p-7 bg-white/90 border-slate-200 shadow-xl shadow-slate-200/50 h-full shimmer-card">
+            <div className="absolute top-0 right-0 w-36 h-36 bg-amber-400/10 rounded-full blur-2xl group-hover:bg-amber-400/25 transition-all" />
 
             <div>
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-500 to-indigo-600 flex items-center justify-center text-white mb-6 shadow-lg shadow-cyan-500/25 group-hover:scale-110 transition-transform">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-600 to-amber-800 flex items-center justify-center text-amber-50 mb-6 shadow-md shadow-amber-800/20 group-hover:scale-110 transition-transform">
                 <Bot className="w-8 h-8" />
               </div>
 
               <div className="space-y-2.5">
-                <span className="inline-block text-[10px] font-mono font-bold text-cyan-400 tracking-wider uppercase px-2.5 py-0.5 bg-cyan-500/10 border border-cyan-500/30 rounded-full">
+                <span className="inline-block text-[10px] font-mono font-bold text-amber-900 tracking-wider uppercase px-2.5 py-0.5 bg-amber-100 border border-amber-300 rounded-full">
                   VS STOCKFISH AI
                 </span>
-                <h2 className="text-2xl font-black text-white group-hover:text-cyan-300 transition-colors">
+                <h2 className="text-2xl font-black text-slate-900 group-hover:text-amber-800 transition-colors font-serif-classic">
                   Play Bubble Bot
                 </h2>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Challenge Stockfish 18 AI Engine. Customize ELO rating (800 - 3000), toggle legal move highlights, use takebacks, and inspect move logs.
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Challenge Stockfish 18 AI Engine. Customize ELO rating (800 - 3200), toggle legal move hints, use takebacks, and inspect move logs.
                 </p>
               </div>
             </div>
 
-            <div className="mt-8 pt-4 border-t border-slate-800/80">
+            <div className="mt-8 pt-4 border-t border-slate-200">
               <Button
-                variant="accent"
-                className="w-full justify-between group-hover:shadow-cyan-500/30 font-bold py-3"
+                variant="classic"
+                className="w-full justify-between font-bold py-3 text-sm shadow-md"
                 onClick={onSelectBubbleBot}
               >
                 <span>Configure & Play</span>
@@ -128,31 +128,31 @@ export const WelcomePage: React.FC<WelcomePageProps> = ({
           whileTap={{ scale: 0.98 }}
           className="h-full"
         >
-          <Card className="relative overflow-hidden group hover:border-indigo-500/60 transition-all duration-300 flex flex-col justify-between p-7 bg-slate-900/80 border-slate-800 shadow-2xl h-full shimmer-card">
+          <Card className="relative overflow-hidden group hover:border-indigo-500/70 transition-all duration-300 flex flex-col justify-between p-7 bg-white/90 border-slate-200 shadow-xl shadow-slate-200/50 h-full shimmer-card">
             <div className="absolute top-0 right-0 w-36 h-36 bg-indigo-500/10 rounded-full blur-2xl group-hover:bg-indigo-500/25 transition-all" />
 
             <div>
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white mb-6 shadow-lg shadow-indigo-500/25 group-hover:scale-110 transition-transform">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-600 to-indigo-800 flex items-center justify-center text-white mb-6 shadow-md shadow-indigo-800/20 group-hover:scale-110 transition-transform">
                 <Users className="w-8 h-8" />
               </div>
 
               <div className="space-y-2.5">
-                <span className="inline-block text-[10px] font-mono font-bold text-indigo-400 tracking-wider uppercase px-2.5 py-0.5 bg-indigo-500/10 border border-indigo-500/30 rounded-full">
+                <span className="inline-block text-[10px] font-mono font-bold text-indigo-900 tracking-wider uppercase px-2.5 py-0.5 bg-indigo-100 border border-indigo-300 rounded-full">
                   MULTIPLAYER 1V1
                 </span>
-                <h2 className="text-2xl font-black text-white group-hover:text-indigo-300 transition-colors">
+                <h2 className="text-2xl font-black text-slate-900 group-hover:text-indigo-800 transition-colors font-serif-classic">
                   Play 1 vs 1
                 </h2>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Battle another player in Local Pass & Play mode on the same device or invite a friend to an Online room with live chat.
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Battle another player in Local Pass & Play on the same device or invite a friend to an Online room with live match chat.
                 </p>
               </div>
             </div>
 
-            <div className="mt-8 pt-4 border-t border-slate-800/80">
+            <div className="mt-8 pt-4 border-t border-slate-200">
               <Button
                 variant="accent"
-                className="w-full justify-between bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 group-hover:shadow-indigo-500/30 font-bold py-3"
+                className="w-full justify-between font-bold py-3 text-sm shadow-md"
                 onClick={onSelect1v1}
               >
                 <span>Choose Mode & Play</span>
@@ -171,31 +171,31 @@ export const WelcomePage: React.FC<WelcomePageProps> = ({
           whileTap={{ scale: 0.98 }}
           className="h-full"
         >
-          <Card className="relative overflow-hidden group hover:border-emerald-500/60 transition-all duration-300 flex flex-col justify-between p-7 bg-slate-900/80 border-slate-800 shadow-2xl h-full shimmer-card">
+          <Card className="relative overflow-hidden group hover:border-emerald-500/70 transition-all duration-300 flex flex-col justify-between p-7 bg-white/90 border-slate-200 shadow-xl shadow-slate-200/50 h-full shimmer-card">
             <div className="absolute top-0 right-0 w-36 h-36 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/25 transition-all" />
 
             <div>
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white mb-6 shadow-lg shadow-emerald-500/25 group-hover:scale-110 transition-transform">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-800 flex items-center justify-center text-white mb-6 shadow-md shadow-emerald-800/20 group-hover:scale-110 transition-transform">
                 <BarChart2 className="w-8 h-8" />
               </div>
 
               <div className="space-y-2.5">
-                <span className="inline-block text-[10px] font-mono font-bold text-emerald-400 tracking-wider uppercase px-2.5 py-0.5 bg-emerald-500/10 border border-emerald-500/30 rounded-full">
+                <span className="inline-block text-[10px] font-mono font-bold text-emerald-900 tracking-wider uppercase px-2.5 py-0.5 bg-emerald-100 border border-emerald-300 rounded-full">
                   GAME ANALYSIS
                 </span>
-                <h2 className="text-2xl font-black text-white group-hover:text-emerald-300 transition-colors">
+                <h2 className="text-2xl font-black text-slate-900 group-hover:text-emerald-800 transition-colors font-serif-classic">
                   Analyze Game
                 </h2>
-                <p className="text-xs text-slate-400 leading-relaxed">
+                <p className="text-xs text-slate-600 leading-relaxed">
                   Paste PGN string or load your finished match to analyze move quality, spot blunders & mistakes, and inspect Stockfish recommendations.
                 </p>
               </div>
             </div>
 
-            <div className="mt-8 pt-4 border-t border-slate-800/80">
+            <div className="mt-8 pt-4 border-t border-slate-200">
               <Button
-                variant="accent"
-                className="w-full justify-between group-hover:shadow-emerald-500/30 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3"
+                variant="primary"
+                className="w-full justify-between bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 text-sm shadow-md"
                 onClick={onSelectAnalyze}
               >
                 <span>Open Analyzer</span>
@@ -208,5 +208,6 @@ export const WelcomePage: React.FC<WelcomePageProps> = ({
     </div>
   );
 };
+
 
 

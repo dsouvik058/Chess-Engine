@@ -2,21 +2,22 @@ import React from 'react';
 import { cn } from '../../utils/cn';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'accent';
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'accent' | 'classic';
   size?: 'sm' | 'md' | 'lg' | 'icon';
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = 'primary', size = 'md', children, ...props }, ref) => {
-    const baseStyles = 'inline-flex items-center justify-center font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg active:scale-95';
+    const baseStyles = 'inline-flex items-center justify-center font-bold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-amber-500/40 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl active:scale-[0.98] cursor-pointer select-none';
 
     const variants = {
-      primary: 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold shadow-lg shadow-cyan-500/20 border border-cyan-400/30',
-      secondary: 'bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700/60 shadow-sm',
-      outline: 'border border-slate-700 bg-slate-900/50 hover:bg-slate-800 text-slate-200 hover:border-slate-600',
-      ghost: 'bg-transparent hover:bg-slate-800/60 text-slate-300 hover:text-slate-100',
-      danger: 'bg-rose-500 hover:bg-rose-400 text-white font-semibold shadow-lg shadow-rose-500/20',
-      accent: 'bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white font-semibold shadow-lg shadow-indigo-500/25',
+      primary: 'bg-amber-600 hover:bg-amber-700 text-white shadow-md shadow-amber-600/20 border border-amber-500/40',
+      secondary: 'bg-white hover:bg-slate-100 text-slate-800 border border-slate-200/90 shadow-sm shadow-slate-200/50',
+      outline: 'border border-slate-300 bg-white/80 hover:bg-slate-50 text-slate-700 hover:border-slate-400 shadow-sm',
+      ghost: 'bg-transparent hover:bg-slate-200/60 text-slate-700 hover:text-slate-900',
+      danger: 'bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-md shadow-rose-600/20 border border-rose-500',
+      accent: 'bg-gradient-to-r from-amber-600 via-indigo-600 to-indigo-700 hover:from-amber-500 hover:to-indigo-600 text-white shadow-lg shadow-indigo-600/20 border border-indigo-500/30',
+      classic: 'bg-gradient-to-r from-amber-700 to-amber-900 hover:from-amber-600 hover:to-amber-800 text-amber-50 shadow-md shadow-amber-900/20 border border-amber-600',
     };
 
     const sizes = {
@@ -39,3 +40,4 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 );
 
 Button.displayName = 'Button';
+

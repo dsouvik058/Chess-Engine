@@ -180,6 +180,9 @@ export function App() {
     }
   }, [elo, gameMode]);
 
+  // Increments
+  const [incrementSeconds, setIncrementSeconds] = useState<number>(0);
+
   // Turn Clocks
   const currentTurn: PlayerColor = game.turn() === 'w' ? 'white' : 'black';
   const isGameOver = game.isGameOver() || !!gameOverTitle;
@@ -191,7 +194,7 @@ export function App() {
     soundFx.playGameOver();
   }, []);
 
-  const { formattedWhiteTime, formattedBlackTime, resetClock } = useChessClock({
+  const { formattedWhiteTime, formattedBlackTime, resetClock, addIncrement } = useChessClock({
     initialMinutes: gameMinutes,
     activeColor: (viewMode === 'GAME' && !isGameOver) ? currentTurn : null,
     isGameOver,
@@ -335,6 +338,11 @@ export function App() {
                 movesSanRef.current.push(moveRes.san);
                 fenListRef.current.push(nextGame.fen());
 
+                // Apply increment if configured
+                if (incrementSeconds > 0) {
+                  addIncrement(moveRes.color === 'w' ? 'white' : 'black', incrementSeconds);
+                }
+
                 // Update move log
                 setMoveHistory((prevHistory) => {
                   const newHist = [...prevHistory];
@@ -368,7 +376,7 @@ export function App() {
       console.error('Stockfish API error:', e);
       setIsEngineThinking(false);
     }
-  }, [elo, isEngineThinking, game, checkGameOverState]);
+  }, [elo, isEngineThinking, game, checkGameOverState, incrementSeconds, addIncrement]);
 
   // Handle Player move
   const handleMakeMove = (
@@ -401,6 +409,11 @@ export function App() {
       movesSanRef.current.push(moveRes.san);
       fenListRef.current.push(nextGame.fen());
 
+      // Apply increment to player who just moved
+      if (incrementSeconds > 0) {
+        addIncrement(moveRes.color === 'w' ? 'white' : 'black', incrementSeconds);
+      }
+
       // Update Move Log
       setMoveHistory((prevHistory) => {
         const newHist = [...prevHistory];
@@ -421,6 +434,12 @@ export function App() {
 
       calculateCapturedPieces(nextGame);
       checkGameOverState(nextGame);
+
+      // In Local 1v1 mode, flip board to active player's turn for seamless pass and play
+      if (gameMode === 'LOCAL_1V1') {
+        const nextTurn = nextGame.turn() === 'w' ? 'white' : 'black';
+        setBoardOrientation(nextTurn);
+      }
 
       // If Online 1v1, publish move over WebSocket
       if (gameMode === 'ONLINE_1V1' && roomId) {
@@ -458,6 +477,7 @@ export function App() {
     setUserColor(selectedColor);
     setBoardOrientation(selectedColor);
     setGameMinutes(timeConfig.initialMinutes);
+    setIncrementSeconds(timeConfig.incrementSeconds || 0);
 
     setMoveHistory([]);
     movesSanRef.current = [];
@@ -480,6 +500,7 @@ export function App() {
       }, 400);
     }
   };
+
 
   // Start Local 1v1 (Pass & Play)
   const handleStartLocal1v1 = (selectedColor: PlayerColor, timeMinutes: number = 10) => {
@@ -718,9 +739,9 @@ export function App() {
 
   if (isAuthChecking) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
-        <div className="w-12 h-12 border-4 border-cyan-500/30 border-t-cyan-400 rounded-full animate-spin mb-4" />
-        <p className="text-slate-400 text-xs font-mono tracking-widest uppercase animate-pulse">
+      <div className="min-h-screen bg-stone-50 flex flex-col items-center justify-center p-4">
+        <div className="w-12 h-12 border-4 border-amber-300 border-t-amber-700 rounded-full animate-spin mb-4" />
+        <p className="text-slate-600 text-xs font-mono tracking-widest uppercase animate-pulse font-bold">
           Authenticating Engine Session...
         </p>
       </div>
@@ -754,7 +775,7 @@ export function App() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 selection:bg-cyan-500 selection:text-slate-950">
+    <div className="min-h-screen flex flex-col bg-stone-50/60 text-slate-900 selection:bg-amber-500 selection:text-white">
       {/* Navbar */}
       <Navbar
         theme={theme}
@@ -868,7 +889,6 @@ export function App() {
                 messages={chatMessages}
                 onSendMessage={handleSendChatMessage}
                 myPlayerId={myPlayerIdRef.current || myPlayerId}
-                opponentName={opponentName}
               />
             ) : null}
 
@@ -903,29 +923,31 @@ export function App() {
         onClose={() => setGameOverTitle(null)}
         title={gameOverTitle || 'Game Over'}
         className="max-w-md"
+        closeOnBackdropClick={false}
+        hideCloseButton={true}
       >
-        <div className="space-y-6 text-center py-2">
-          <p className="text-xl font-bold text-cyan-300">{gameOverMessage}</p>
+        <div className="space-y-6 text-center py-2 text-slate-900">
+          <p className="text-xl font-black text-amber-800 font-serif-classic">{gameOverMessage}</p>
 
           {/* 4 Action Buttons */}
           <div className="grid grid-cols-2 gap-3 pt-2">
             {/* Button 1: Main Menu */}
             <Button
               variant="secondary"
-              className="w-full flex items-center justify-center gap-2"
+              className="w-full flex items-center justify-center gap-2 font-bold"
               onClick={() => {
                 setGameOverTitle(null);
                 setViewMode('WELCOME');
               }}
             >
-              <Home className="w-4 h-4 text-cyan-400" />
+              <Home className="w-4 h-4 text-amber-700" />
               Main Menu
             </Button>
 
             {/* Button 2: Analyze Game */}
             <Button
               variant="accent"
-              className="w-full flex items-center justify-center gap-2"
+              className="w-full flex items-center justify-center gap-2 font-bold"
               onClick={() => {
                 setGameOverTitle(null);
                 handleAnalyze();
@@ -938,17 +960,17 @@ export function App() {
             {/* Button 3: Copy PGN */}
             <Button
               variant="outline"
-              className="w-full flex items-center justify-center gap-2"
+              className="w-full flex items-center justify-center gap-2 font-bold"
               onClick={handleCopyPgn}
             >
-              {pgnCopied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-blue-400" />}
+              {pgnCopied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-amber-700" />}
               {pgnCopied ? 'Copied!' : 'Copy PGN'}
             </Button>
 
             {/* Button 4: Play Again */}
             <Button
-              variant="primary"
-              className="w-full flex items-center justify-center gap-2"
+              variant="classic"
+              className="w-full flex items-center justify-center gap-2 font-bold shadow-md"
               onClick={() => {
                 setGameOverTitle(null);
                 if (gameMode === 'BUBBLE_BOT') setIsPreGameBotOpen(true);
@@ -964,31 +986,31 @@ export function App() {
 
       {/* PGN / FEN Utility Modal */}
       <Modal isOpen={isPgnOpen} onClose={() => setIsPgnOpen(false)} title="PGN / FEN Utility">
-        <div className="space-y-4">
+        <div className="space-y-4 text-slate-900">
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Current Match PGN</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Current Match PGN</label>
             <textarea
               readOnly
               value={generateRealPgn()}
               rows={4}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 font-mono text-xs text-slate-200 select-all"
+              className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-mono text-xs text-slate-900 select-all shadow-sm font-semibold"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Import FEN Position</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Import FEN Position</label>
             <input
               type="text"
               placeholder="e.g. rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
               value={pgnInput}
               onChange={(e) => setPgnInput(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-slate-200"
+              className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 shadow-sm"
             />
           </div>
 
           <Button
-            variant="primary"
-            className="w-full"
+            variant="classic"
+            className="w-full font-bold shadow-md"
             onClick={() => {
               try {
                 const fresh = new Chess(pgnInput.trim());
@@ -1006,3 +1028,4 @@ export function App() {
     </div>
   );
 }
+

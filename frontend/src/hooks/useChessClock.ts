@@ -75,6 +75,15 @@ export function useChessClock({
     };
   }, [activeColor, isGameOver, onTimeOut]);
 
+  const addIncrement = useCallback((color: PlayerColor, incrementSecs: number) => {
+    if (incrementSecs <= 0) return;
+    if (color === 'white') {
+      setWhiteTime((prev) => prev + incrementSecs);
+    } else {
+      setBlackTime((prev) => prev + incrementSecs);
+    }
+  }, []);
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -87,5 +96,7 @@ export function useChessClock({
     formattedWhiteTime: formatTime(whiteTime),
     formattedBlackTime: formatTime(blackTime),
     resetClock,
+    addIncrement,
   };
 }
+

@@ -38,20 +38,20 @@ export const EvaluationBar: React.FC<EvaluationBarProps> = ({
 
   // Determine top height and colors based on orientation
   const topHeight = isFlipped ? whitePercent : blackPercent;
-  const topBgClass = isFlipped ? 'bg-gradient-to-b from-slate-100 via-slate-200 to-slate-100' : 'bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950';
-  const bottomBgClass = isFlipped ? 'bg-gradient-to-t from-slate-950 via-slate-900 to-slate-950' : 'bg-gradient-to-t from-slate-100 via-slate-200 to-white';
+  const topBgClass = isFlipped ? 'bg-gradient-to-b from-stone-100 via-amber-50 to-white' : 'bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900';
+  const bottomBgClass = isFlipped ? 'bg-gradient-to-t from-slate-900 via-slate-800 to-slate-900' : 'bg-gradient-to-t from-stone-100 via-amber-50 to-white';
 
   const isMate = scoreType === 'mate';
   const isHighAdvantage = Math.abs(scoreValue) > 300 || isMate;
 
   return (
     <div
-      className={`relative w-6 sm:w-7 h-[380px] sm:h-[440px] md:h-[480px] rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-2xl flex-shrink-0 select-none transition-shadow duration-500 ${
+      className={`relative w-6 sm:w-7 h-[380px] sm:h-[440px] md:h-[480px] rounded-2xl overflow-hidden bg-slate-900 border-2 border-amber-200/90 shadow-xl flex-shrink-0 select-none transition-shadow duration-500 ${
         isMate
-          ? 'shadow-rose-500/20 border-rose-500/40'
+          ? 'shadow-rose-500/20 border-rose-400'
           : isHighAdvantage
-          ? 'shadow-cyan-500/20 border-cyan-500/40'
-          : 'shadow-slate-900/60'
+          ? 'shadow-amber-500/20 border-amber-400'
+          : 'shadow-slate-400/20'
       }`}
     >
       {/* Bottom Layer */}
@@ -59,13 +59,13 @@ export const EvaluationBar: React.FC<EvaluationBarProps> = ({
 
       {/* Top Animated Layer with Spring Physics */}
       <motion.div
-        className={`absolute top-0 inset-x-0 ${topBgClass} border-b border-cyan-400/80 shadow-md`}
+        className={`absolute top-0 inset-x-0 ${topBgClass} border-b-2 border-amber-500/80 shadow-md`}
         initial={false}
         animate={{ height: `${topHeight}%` }}
         transition={{ type: 'spring', stiffness: 75, damping: 16, mass: 0.8 }}
       >
         {/* Glow boundary wave */}
-        <div className="absolute bottom-0 inset-x-0 h-1 bg-cyan-400/70 blur-[1px]" />
+        <div className="absolute bottom-0 inset-x-0 h-1 bg-amber-400/80 blur-[1px]" />
       </motion.div>
 
       {/* Eval Label Pill - Dynamic Animated Floating Badge */}
@@ -77,12 +77,12 @@ export const EvaluationBar: React.FC<EvaluationBarProps> = ({
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.7, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 350, damping: 20 }}
-            className={`px-1.5 py-0.5 rounded-md text-[9px] font-mono font-black tracking-tight shadow-lg border backdrop-blur-md ${
+            className={`px-1.5 py-0.5 rounded-md text-[9px] font-mono font-black tracking-tight shadow-md border backdrop-blur-md ${
               isMate
-                ? 'bg-rose-950/90 text-rose-300 border-rose-500/60 animate-urgent'
+                ? 'bg-rose-900 text-rose-100 border-rose-400 animate-urgent'
                 : isHighAdvantage
-                ? 'bg-cyan-950/90 text-cyan-300 border-cyan-500/60'
-                : 'bg-slate-950/90 text-cyan-300 border-cyan-500/40'
+                ? 'bg-amber-900 text-amber-100 border-amber-500'
+                : 'bg-white/95 text-slate-900 border-slate-300 shadow-sm'
             }`}
           >
             {text}
@@ -92,6 +92,7 @@ export const EvaluationBar: React.FC<EvaluationBarProps> = ({
     </div>
   );
 };
+
 
 
 

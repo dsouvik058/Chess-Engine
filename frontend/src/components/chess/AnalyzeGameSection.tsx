@@ -20,7 +20,7 @@ import { Badge } from '../ui/Badge';
 import { Modal } from '../ui/Modal';
 import { EvaluationBar } from './EvaluationBar';
 import { api } from '../../services/api';
-import type { MoveClassification, BoardTheme } from '../../types/chess';
+import type { MoveClassification } from '../../types/chess';
 import { isBookMove } from '../../utils/openingBook';
 import { soundFx } from '../../utils/sound';
 
@@ -49,7 +49,6 @@ interface AnalyzeGameSectionProps {
   initialPgn?: string;
   onBackToWelcome: () => void;
 }
-
 
 const PIECE_SYMBOLS: Record<string, string> = {
   p: '♟',
@@ -93,25 +92,25 @@ const getSquarePercent = (square: Square, isFlipped: boolean) => {
 const getClassificationBadge = (classification: MoveClassification) => {
   switch (classification) {
     case 'brilliant':
-      return { symbol: '!!', className: 'bg-gradient-to-r from-cyan-400 to-teal-400 text-slate-950 font-black shadow-lg shadow-cyan-500/50 ring-2 ring-cyan-300/50', label: 'Brilliant Move' };
+      return { symbol: '!!', className: 'bg-teal-500 text-white font-black shadow-md shadow-teal-500/40 ring-2 ring-teal-200', label: 'Brilliant Move' };
     case 'great':
-      return { symbol: '!', className: 'bg-blue-500 text-white font-bold shadow-lg shadow-blue-500/50', label: 'Great Move' };
+      return { symbol: '!', className: 'bg-blue-600 text-white font-bold shadow-md shadow-blue-500/40', label: 'Great Move' };
     case 'best':
-      return { symbol: '★', className: 'bg-emerald-500 text-white font-bold shadow-lg shadow-emerald-500/50', label: 'Best Move' };
+      return { symbol: '★', className: 'bg-emerald-600 text-white font-bold shadow-md shadow-emerald-500/40', label: 'Best Move' };
     case 'excellent':
-      return { symbol: '✓', className: 'bg-teal-500 text-white font-bold shadow-lg shadow-teal-500/50', label: 'Excellent Move' };
+      return { symbol: '✓', className: 'bg-emerald-500 text-white font-bold shadow-sm', label: 'Excellent Move' };
     case 'good':
-      return { symbol: '👍', className: 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/50', label: 'Good Move' };
+      return { symbol: '👍', className: 'bg-green-600 text-white shadow-sm', label: 'Good Move' };
     case 'inaccuracy':
-      return { symbol: '?!', className: 'bg-amber-400 text-slate-950 font-black shadow-lg shadow-amber-400/50', label: 'Inaccuracy' };
+      return { symbol: '?!', className: 'bg-amber-500 text-slate-950 font-black shadow-sm', label: 'Inaccuracy' };
     case 'mistake':
-      return { symbol: '?', className: 'bg-orange-500 text-white font-black shadow-lg shadow-orange-500/50', label: 'Mistake' };
+      return { symbol: '?', className: 'bg-orange-500 text-white font-black shadow-sm', label: 'Mistake' };
     case 'blunder':
-      return { symbol: '??', className: 'bg-red-600 text-white font-black shadow-lg shadow-red-600/50 animate-bounce', label: 'Blunder' };
+      return { symbol: '??', className: 'bg-rose-600 text-white font-black shadow-md animate-bounce', label: 'Blunder' };
     case 'miss':
-      return { symbol: '❌', className: 'bg-rose-700 text-white font-bold shadow-lg shadow-rose-700/50', label: 'Missed Win' };
+      return { symbol: '❌', className: 'bg-purple-700 text-white font-bold shadow-sm', label: 'Missed Win' };
     case 'book':
-      return { symbol: '📖', className: 'bg-sky-500 text-white shadow-lg shadow-sky-500/50', label: 'Book Move' };
+      return { symbol: '📖', className: 'bg-amber-700 text-white shadow-sm', label: 'Book Move' };
     default:
       return { symbol: '✓', className: 'bg-slate-600 text-white', label: 'Move' };
   }
@@ -122,14 +121,13 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
   onBackToWelcome,
 }) => {
   const [pgnText, setPgnText] = useState<string>(initialPgn || SAMPLE_PGN);
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(true);
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(!initialPgn);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [analysisProgress, setAnalysisProgress] = useState<{ current: number; total: number } | null>(null);
 
   const [analyzedMoves, setAnalyzedMoves] = useState<AnalyzedMove[]>([]);
   const [currentMoveIndex, setCurrentMoveIndex] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [boardTheme] = useState<BoardTheme>('wood');
   const [isFlipped, setIsFlipped] = useState<boolean>(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -187,7 +185,7 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
 
       setAnalysisProgress({ current: 0, total: historyMoves.length });
 
-      // Fast single batch API call to the optimized backend Stockfish pipeline
+      // Fast single batch API call to the backend Stockfish pipeline
       const analysisRes = await api.analyzeGame(uciMoves, {
         sanMoves,
         movetime: 120,
@@ -269,6 +267,13 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
     }
   }, []);
 
+  // Auto-run if initialPgn passed
+  useEffect(() => {
+    if (initialPgn) {
+      runAnalysis(initialPgn);
+    }
+  }, [initialPgn, runAnalysis]);
+
   const activePositionFen = useMemo(() => {
     if (analyzedMoves.length === 0 || currentMoveIndex === 0) {
       return 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
@@ -303,30 +308,30 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
     const styles: Record<string, React.CSSProperties> = {};
     if (!activeMove) return styles;
 
-    // Played move highlight (Cyan)
-    styles[activeMove.from] = { backgroundColor: 'rgba(6, 182, 212, 0.4)' };
-    styles[activeMove.to] = { backgroundColor: 'rgba(6, 182, 212, 0.6)' };
+    // Played move highlight (Warm Amber)
+    styles[activeMove.from] = { backgroundColor: 'rgba(217, 119, 6, 0.4)' };
+    styles[activeMove.to] = { backgroundColor: 'rgba(217, 119, 6, 0.6)' };
 
     // Highlight best move (Green)
     const bestFrom = activeMove.bestMoveFrom || activeMove.from;
     const bestTo = activeMove.bestMoveTo || activeMove.to;
 
     if (bestFrom && bestTo && (bestFrom !== activeMove.from || bestTo !== activeMove.to)) {
-      styles[bestFrom] = { backgroundColor: 'rgba(16, 185, 129, 0.35)', borderRadius: '50%' };
-      styles[bestTo] = { backgroundColor: 'rgba(16, 185, 129, 0.5)', border: '2px dashed #10b981' };
+      styles[bestFrom] = { backgroundColor: 'rgba(16, 185, 129, 0.4)', borderRadius: '50%' };
+      styles[bestTo] = { backgroundColor: 'rgba(16, 185, 129, 0.55)', border: '2px dashed #059669' };
     }
 
     return styles;
   }, [activeMove]);
 
-  // Always show Green Arrow for Stockfish Best Move
+  // Show Green Arrow for Stockfish Best Move
   const boardArrows = useMemo(() => {
     if (!activeMove) return [];
     const bestFrom = activeMove.bestMoveFrom || activeMove.from;
     const bestTo = activeMove.bestMoveTo || activeMove.to;
 
     if (bestFrom && bestTo) {
-      return [{ startSquare: bestFrom, endSquare: bestTo, color: '#10b981' }];
+      return [{ startSquare: bestFrom, endSquare: bestTo, color: '#059669' }];
     }
     return [];
   }, [activeMove]);
@@ -386,7 +391,7 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
   }, [currentMoveIndex]);
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-4 md:p-6 space-y-6 animate-in fade-in duration-300">
+    <div className="w-full max-w-7xl mx-auto p-4 md:p-6 space-y-6 animate-in fade-in duration-300 text-slate-900">
 
       {/* PGN Input Modal Dialog Box */}
       <Modal
@@ -396,21 +401,21 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
         className="max-w-xl"
       >
         <div className="space-y-5 py-2">
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-600">
             Paste your PGN below to analyze game accuracy, move quality, best engine moves, and interactive move history.
           </p>
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                <FileText className="w-4 h-4 text-emerald-400" />
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5 font-mono">
+                <FileText className="w-4 h-4 text-emerald-600" />
                 PGN Game Notation
               </label>
 
               <button
                 type="button"
                 onClick={() => setPgnText(SAMPLE_PGN)}
-                className="text-[11px] text-cyan-400 hover:underline font-mono"
+                className="text-[11px] text-amber-700 hover:underline font-mono font-bold"
               >
                 Load Sample Match
               </button>
@@ -421,25 +426,25 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
               onChange={(e) => setPgnText(e.target.value)}
               placeholder="Paste PGN string here (e.g. 1. e4 e5 2. Nf3 Nc6...)"
               rows={5}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200 focus:outline-none focus:border-emerald-500 transition-all resize-y select-all"
+              className="w-full bg-white border border-slate-300 rounded-xl p-3 text-xs font-mono text-slate-900 focus:outline-none focus:border-amber-500 transition-all resize-y select-all shadow-sm font-semibold"
             />
           </div>
 
-          {/* Real-Time Analysis Progress Feedback */}
+          {/* Real-Time Analysis Progress */}
           {isAnalyzing && analysisProgress && (
-            <div className="space-y-2 py-3 border-t border-slate-800/80 animate-in fade-in">
-              <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-cyan-400 font-bold animate-pulse flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-cyan-400" />
+            <div className="space-y-2 py-3 border-t border-slate-200 animate-in fade-in">
+              <div className="flex items-center justify-between text-xs font-mono font-bold">
+                <span className="text-amber-800 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-600 animate-spin" />
                   Evaluating move {analysisProgress.current} of {analysisProgress.total} with Stockfish...
                 </span>
-                <span className="text-emerald-400 font-bold">
+                <span className="text-emerald-700">
                   {Math.round((analysisProgress.current / (analysisProgress.total || 1)) * 100)}%
                 </span>
               </div>
-              <div className="w-full bg-slate-950 rounded-full h-2.5 overflow-hidden border border-slate-800">
+              <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden border border-slate-300">
                 <div
-                  className="bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-500 h-2.5 rounded-full transition-all duration-200"
+                  className="bg-gradient-to-r from-amber-600 via-amber-500 to-emerald-600 h-2.5 rounded-full transition-all duration-200"
                   style={{ width: `${(analysisProgress.current / (analysisProgress.total || 1)) * 100}%` }}
                 />
               </div>
@@ -450,16 +455,16 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
             <Button
               variant="outline"
               onClick={onBackToWelcome}
-              className="w-1/3 text-xs"
+              className="w-1/3 text-xs font-bold"
             >
               Cancel
             </Button>
 
             <Button
-              variant="accent"
+              variant="classic"
               onClick={() => runAnalysis(pgnText)}
               disabled={isAnalyzing || !pgnText.trim()}
-              className="w-2/3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 py-3"
+              className="w-2/3 font-bold flex items-center justify-center gap-2 shadow-lg py-3"
             >
               {isAnalyzing ? (
                 <>
@@ -482,7 +487,7 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
         
         {/* LEFT COLUMN: Interactive Chessboard */}
         <div className="lg:col-span-6 flex flex-col items-center gap-4">
-          <div className="relative rounded-3xl p-3.5 glass-card border border-slate-700/80 shadow-2xl shadow-emerald-500/10 w-full max-w-[530px] flex items-center gap-3">
+          <div className="relative rounded-3xl p-3.5 glass-card border-2 border-amber-200/90 shadow-2xl shadow-amber-900/10 w-full max-w-[530px] flex items-center gap-3 bg-gradient-to-b from-amber-50/80 to-white">
             {/* Real-time Vertical Evaluation Bar */}
             <EvaluationBar
               scoreType={activeScoreType}
@@ -490,20 +495,20 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
               isFlipped={isFlipped}
             />
 
-            <div className="relative w-full aspect-square rounded-2xl overflow-hidden shadow-2xl border border-slate-800 flex-1">
+            <div className="relative w-full aspect-square rounded-2xl overflow-hidden shadow-xl border-2 border-amber-900/25 flex-1">
               <Chessboard
                 options={{
                   position: activePositionFen,
                   boardOrientation: isFlipped ? 'black' : 'white',
-                  darkSquareStyle: { backgroundColor: boardTheme === 'wood' ? '#b58863' : '#1e1b4b' },
-                  lightSquareStyle: { backgroundColor: boardTheme === 'wood' ? '#f0d9b5' : '#312e81' },
+                  darkSquareStyle: { backgroundColor: '#b58863' },
+                  lightSquareStyle: { backgroundColor: '#f0d9b5' },
                   squareStyles: boardSquareStyles,
                   arrows: boardArrows,
                   allowDragging: false,
                 }}
               />
 
-              {/* Piece Quality Badge Mark Overlay on Target Square */}
+              {/* Piece Quality Badge Mark Overlay */}
               {activeMove && (
                 <div className="absolute inset-0 pointer-events-none z-10">
                   {(() => {
@@ -521,7 +526,7 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
                         className="absolute flex items-start justify-end p-0.5"
                       >
                         <div
-                          className={`flex items-center justify-center font-mono font-black text-[11px] min-w-[22px] h-[22px] px-1 rounded-full border-2 border-slate-950 animate-in zoom-in-50 duration-200 ${badgeInfo.className}`}
+                          className={`flex items-center justify-center font-mono font-black text-[11px] min-w-[22px] h-[22px] px-1 rounded-full border-2 border-white shadow-md animate-in zoom-in-50 duration-200 ${badgeInfo.className}`}
                           title={`${badgeInfo.label} (${activeMove.san})`}
                         >
                           {badgeInfo.symbol}
@@ -539,7 +544,7 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
               variant="outline"
               size="sm"
               onClick={onBackToWelcome}
-              className="text-xs text-slate-400 hover:text-white flex items-center gap-2 font-bold rounded-xl"
+              className="text-xs text-slate-700 hover:text-slate-900 flex items-center gap-2 font-bold rounded-xl"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Back to Lobby</span>
@@ -549,7 +554,7 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
               variant="secondary"
               size="sm"
               onClick={() => setIsModalOpen(true)}
-              className="text-xs flex items-center gap-1.5 text-emerald-400 border-emerald-500/30 font-bold rounded-xl"
+              className="text-xs flex items-center gap-1.5 text-amber-800 border-amber-300 font-bold rounded-xl bg-amber-50 hover:bg-amber-100"
             >
               <FileText className="w-3.5 h-3.5" />
               <span>Analyze New PGN</span>
@@ -562,37 +567,37 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
           
           {/* Accuracy Summary Header Cards */}
           <div className="grid grid-cols-2 gap-4 w-full">
-            <div className="glass-card border border-slate-800 rounded-2xl p-4 shadow-xl flex items-center justify-between">
+            <div className="glass-card border border-slate-200 rounded-2xl p-4 shadow-md bg-white flex items-center justify-between">
               <div>
-                <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider block">
+                <span className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider block">
                   White Accuracy
                 </span>
-                <span className="text-3xl font-black font-mono text-cyan-400">
+                <span className="text-3xl font-black font-mono text-amber-700">
                   {whiteAccuracy}%
                 </span>
               </div>
-              <div className="w-10 h-10 rounded-full bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center font-mono font-bold text-cyan-400 text-sm">
+              <div className="w-10 h-10 rounded-full bg-amber-100 border border-amber-300 flex items-center justify-center font-mono font-bold text-amber-900 text-sm">
                 ♔
               </div>
             </div>
 
-            <div className="glass-card border border-slate-800 rounded-2xl p-4 shadow-xl flex items-center justify-between">
+            <div className="glass-card border border-slate-200 rounded-2xl p-4 shadow-md bg-white flex items-center justify-between">
               <div>
-                <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider block">
+                <span className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider block">
                   Black Accuracy
                 </span>
-                <span className="text-3xl font-black font-mono text-indigo-400">
+                <span className="text-3xl font-black font-mono text-indigo-700">
                   {blackAccuracy}%
                 </span>
               </div>
-              <div className="w-10 h-10 rounded-full bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center font-mono font-bold text-indigo-400 text-sm">
+              <div className="w-10 h-10 rounded-full bg-indigo-100 border border-indigo-300 flex items-center justify-center font-mono font-bold text-indigo-900 text-sm">
                 ♚
               </div>
             </div>
           </div>
 
           {/* Move Navigation Controls */}
-          <div className="flex items-center justify-between w-full bg-slate-900/90 border border-slate-800 p-2 rounded-xl shadow-lg">
+          <div className="flex items-center justify-between w-full bg-white border border-slate-200 p-2 rounded-xl shadow-md">
             <div className="flex items-center gap-1">
               <Button
                 variant="outline"
@@ -617,7 +622,7 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
                 size="sm"
                 onClick={() => setIsPlaying((p) => !p)}
                 title={isPlaying ? 'Pause' : 'Play Auto Step'}
-                className={isPlaying ? 'text-amber-400 border-amber-500/50' : ''}
+                className={isPlaying ? 'text-amber-700 border-amber-400 bg-amber-50' : ''}
               >
                 {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
               </Button>
@@ -642,7 +647,7 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-xs font-mono font-bold text-slate-300">
+              <span className="text-xs font-mono font-bold text-slate-700">
                 {currentMoveIndex} / {analyzedMoves.length}
               </span>
 
@@ -659,39 +664,39 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
 
           {/* Active Move Quality Tag Banner */}
           {activeMove && (
-            <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3 flex items-center justify-between shadow-lg font-mono">
+            <div className="bg-white border border-slate-200 rounded-xl p-3 flex items-center justify-between shadow-md font-mono">
               <div className="flex items-center gap-2">
                 <span className="text-lg">{PIECE_SYMBOLS[activeMove.piece] || '♟'}</span>
                 <div>
-                  <div className="text-xs font-bold text-white flex items-center gap-2">
+                  <div className="text-xs font-bold text-slate-900 flex items-center gap-2">
                     <span>Move {activeMove.moveNumber}: {activeMove.san}</span>
                     <Badge type={activeMove.classification}>{activeMove.classification}</Badge>
                   </div>
-                  <span className="text-[10px] text-slate-400">Played by {activeMove.color === 'w' ? 'White' : 'Black'}</span>
+                  <span className="text-[10px] text-slate-500">Played by {activeMove.color === 'w' ? 'White' : 'Black'}</span>
                 </div>
               </div>
 
               {activeMove.bestMoveSan && activeMove.bestMoveSan !== activeMove.san && (
-                <div className="text-right text-[11px] font-mono text-emerald-400">
-                  <span>Best was: <strong className="text-emerald-300">{activeMove.bestMoveSan}</strong></span>
+                <div className="text-right text-[11px] font-mono text-emerald-700 font-bold">
+                  <span>Best was: <strong className="text-emerald-800">{activeMove.bestMoveSan}</strong></span>
                 </div>
               )}
             </div>
           )}
 
           {/* Move History Log */}
-          <div className="glass-card rounded-2xl border border-slate-800 p-4 shadow-xl flex flex-col h-[340px]">
-            <div className="flex items-center justify-between pb-3 mb-2 border-b border-slate-800 text-xs font-bold text-slate-300">
+          <div className="glass-card rounded-2xl border border-slate-200 p-4 shadow-xl shadow-slate-200/50 bg-white flex flex-col h-[340px]">
+            <div className="flex items-center justify-between pb-3 mb-2 border-b border-slate-200 text-xs font-bold text-slate-800 font-serif-classic">
               <div className="flex items-center gap-2">
-                <History className="w-4 h-4 text-cyan-400" />
+                <History className="w-4 h-4 text-amber-700" />
                 <span>Move History Log</span>
               </div>
-              <span className="px-2 py-0.5 rounded-full bg-slate-950 text-[10px] font-mono text-cyan-400 border border-slate-800">
+              <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-[10px] font-mono font-bold text-amber-900 border border-amber-300">
                 {analyzedMoves.length} Moves
               </span>
             </div>
 
-            <div className="grid grid-cols-12 gap-2 text-[10px] font-mono uppercase font-bold text-slate-500 pb-2 px-2 border-b border-slate-800/50">
+            <div className="grid grid-cols-12 gap-2 text-[10px] font-mono uppercase font-bold text-slate-500 pb-2 px-2 border-b border-slate-200">
               <span className="col-span-2">#</span>
               <span className="col-span-5">White</span>
               <span className="col-span-5">Black</span>
@@ -699,15 +704,15 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
 
             <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-1 pt-2 pr-1 font-mono text-xs">
               {moveLogRows.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-slate-500 italic text-xs space-y-1">
+                <div className="h-full flex flex-col items-center justify-center text-slate-400 italic text-xs space-y-1">
                   <span>No analyzed moves</span>
-                  <span className="text-[10px] text-slate-600">Load a PGN to analyze match history</span>
+                  <span className="text-[10px] text-slate-400">Load a PGN to analyze match history</span>
                 </div>
               ) : (
                 moveLogRows.map((row) => (
                   <div
                     key={row.moveNumber}
-                    className="grid grid-cols-12 gap-2 items-center py-1 px-2 rounded-xl hover:bg-slate-800/50 transition-colors"
+                    className="grid grid-cols-12 gap-2 items-center py-1 px-2 rounded-xl hover:bg-amber-50 transition-colors"
                   >
                     <span className="col-span-2 text-slate-500 font-bold">{row.moveNumber}.</span>
 
@@ -718,8 +723,8 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
                         data-active={currentMoveIndex === row.whiteIndex}
                         className={`col-span-5 flex items-center justify-between px-2 py-1 rounded-lg text-left font-bold transition-all cursor-pointer ${
                           currentMoveIndex === row.whiteIndex
-                            ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 shadow-md shadow-cyan-500/10'
-                            : 'text-slate-200 hover:bg-slate-800 hover:text-white'
+                            ? 'bg-amber-100 text-amber-950 border border-amber-400 shadow-sm font-black'
+                            : 'text-slate-800 hover:bg-slate-100'
                         }`}
                       >
                         <span>{row.whiteSan}</span>
@@ -736,8 +741,8 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
                         data-active={currentMoveIndex === row.blackIndex}
                         className={`col-span-5 flex items-center justify-between px-2 py-1 rounded-lg text-left font-bold transition-all cursor-pointer ${
                           currentMoveIndex === row.blackIndex
-                            ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/50 shadow-md shadow-indigo-500/10'
-                            : 'text-slate-200 hover:bg-slate-800 hover:text-white'
+                            ? 'bg-indigo-100 text-indigo-950 border border-indigo-400 shadow-sm font-black'
+                            : 'text-slate-800 hover:bg-slate-100'
                         }`}
                       >
                         <span>{row.blackSan}</span>
@@ -756,4 +761,5 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
     </div>
   );
 };
+
 

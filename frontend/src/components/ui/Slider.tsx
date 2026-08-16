@@ -24,10 +24,10 @@ export const Slider: React.FC<SliderProps> = ({
   return (
     <div className="flex flex-col gap-1.5 w-full">
       {(label || valueDisplay) && (
-        <div className="flex justify-between items-center text-xs font-semibold text-slate-300">
+        <div className="flex justify-between items-center text-xs font-semibold text-slate-700">
           {label && <span>{label}</span>}
           {valueDisplay !== undefined && (
-            <span className="text-cyan-400 font-mono bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800/40">
+            <span className="text-amber-800 font-mono bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200 font-bold">
               {valueDisplay}
             </span>
           )}
@@ -40,10 +40,10 @@ export const Slider: React.FC<SliderProps> = ({
         value={value}
         onChange={onChange}
         style={{
-          background: `linear-gradient(to right, #06b6d4 0%, #06b6d4 ${percentage}%, #1e293b ${percentage}%, #1e293b 100%)`,
+          background: `linear-gradient(to right, #d97706 0%, #d97706 ${percentage}%, #e2e8f0 ${percentage}%, #e2e8f0 100%)`,
         }}
         className={cn(
-          'w-full h-2 rounded-lg appearance-none cursor-pointer accent-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/40 transition-all',
+          'w-full h-2 rounded-lg appearance-none cursor-pointer accent-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-500/40 transition-all',
           className
         )}
         {...props}
@@ -51,3 +51,4 @@ export const Slider: React.FC<SliderProps> = ({
     </div>
   );
 };
+

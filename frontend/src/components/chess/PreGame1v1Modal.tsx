@@ -30,8 +30,8 @@ export const PreGame1v1Modal: React.FC<PreGame1v1ModalProps> = ({
   // Time Control States
   const [category, setCategory] = useState<TimeControlCategory>('rapid');
   const [selectedMinutes, setSelectedMinutes] = useState<number>(10);
-  const [customMinutes, setCustomMinutes] = useState<number>(1.5);
-  const [customIncrementSecs, setCustomIncrementSecs] = useState<number>(1);
+  const [customMinutes, setCustomMinutes] = useState<number>(10);
+  const [customIncrementSecs, setCustomIncrementSecs] = useState<number>(5);
 
   // Side Choice State
   const [chosenSide, setChosenSide] = useState<'white' | 'black' | 'random'>('white');
@@ -158,9 +158,34 @@ export const PreGame1v1Modal: React.FC<PreGame1v1ModalProps> = ({
   };
 
   const handleCopyCode = () => {
-    navigator.clipboard.writeText(createdRoomId);
-    setCodeCopied(true);
-    setTimeout(() => setCodeCopied(false), 2500);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(createdRoomId).then(() => {
+        setCodeCopied(true);
+        setTimeout(() => setCodeCopied(false), 2500);
+      }).catch(() => {
+        fallbackCopyText(createdRoomId);
+      });
+    } else {
+      fallbackCopyText(createdRoomId);
+    }
+  };
+
+  const fallbackCopyText = (text: string) => {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.opacity = '0';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 2500);
+    } catch (e) {
+      console.error('Fallback copy failed', e);
+    }
+    document.body.removeChild(textArea);
   };
 
   const handleStartLocal = () => {
@@ -178,16 +203,16 @@ export const PreGame1v1Modal: React.FC<PreGame1v1ModalProps> = ({
 
   return (
     <Modal isOpen={isOpen} onClose={handleModalClose} title="Configure Play 1 vs 1 Match">
-      <div className="space-y-5">
-        {/* Main Tab Bar: Local PC vs Online Multiple Devices */}
-        <div className="grid grid-cols-2 gap-2.5 p-1.5 bg-slate-950/80 rounded-2xl border border-slate-800">
+      <div className="space-y-5 text-slate-900">
+        {/* Main Tab Bar */}
+        <div className="grid grid-cols-2 gap-2.5 p-1.5 bg-slate-100/80 rounded-2xl border border-slate-200">
           <button
             type="button"
             onClick={() => setActiveTab('local')}
             className={`py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer ${
               activeTab === 'local'
-                ? 'bg-gradient-to-r from-cyan-500 to-indigo-600 text-white shadow-lg shadow-cyan-500/20'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-amber-600 text-white shadow-md shadow-amber-600/20'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Monitor className="w-4 h-4" />
@@ -199,8 +224,8 @@ export const PreGame1v1Modal: React.FC<PreGame1v1ModalProps> = ({
             onClick={() => setActiveTab('online')}
             className={`py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer ${
               activeTab === 'online'
-                ? 'bg-gradient-to-r from-cyan-500 to-indigo-600 text-white shadow-lg shadow-cyan-500/20'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Globe className="w-4 h-4" />
@@ -212,15 +237,15 @@ export const PreGame1v1Modal: React.FC<PreGame1v1ModalProps> = ({
         <div className="space-y-4 pt-1">
           {/* Time Control Category */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-2">Time Control Category</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-2">Time Control Category</label>
             <div className="grid grid-cols-4 gap-2">
               <button
                 type="button"
                 onClick={() => handleCategorySelect('rapid')}
                 className={`py-2.5 px-1 rounded-2xl border font-bold text-xs flex flex-col items-center gap-1 transition-all cursor-pointer ${
                   category === 'rapid'
-                    ? 'bg-gradient-to-br from-cyan-500 to-indigo-600 text-white border-cyan-400 shadow-lg shadow-cyan-500/25 scale-[1.02]'
-                    : 'bg-slate-950/70 text-slate-400 border-slate-800 hover:border-slate-700'
+                    ? 'bg-amber-600 text-white border-amber-700 shadow-md scale-[1.02]'
+                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                 }`}
               >
                 <Clock className="w-4 h-4" />
@@ -232,8 +257,8 @@ export const PreGame1v1Modal: React.FC<PreGame1v1ModalProps> = ({
                 onClick={() => handleCategorySelect('blitz')}
                 className={`py-2.5 px-1 rounded-2xl border font-bold text-xs flex flex-col items-center gap-1 transition-all cursor-pointer ${
                   category === 'blitz'
-                    ? 'bg-gradient-to-br from-cyan-500 to-indigo-600 text-white border-cyan-400 shadow-lg shadow-cyan-500/25 scale-[1.02]'
-                    : 'bg-slate-950/70 text-slate-400 border-slate-800 hover:border-slate-700'
+                    ? 'bg-amber-600 text-white border-amber-700 shadow-md scale-[1.02]'
+                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                 }`}
               >
                 <Flame className="w-4 h-4 text-amber-400" />
@@ -245,11 +270,11 @@ export const PreGame1v1Modal: React.FC<PreGame1v1ModalProps> = ({
                 onClick={() => handleCategorySelect('bullet')}
                 className={`py-2.5 px-1 rounded-2xl border font-bold text-xs flex flex-col items-center gap-1 transition-all cursor-pointer ${
                   category === 'bullet'
-                    ? 'bg-gradient-to-br from-cyan-500 to-indigo-600 text-white border-cyan-400 shadow-lg shadow-cyan-500/25 scale-[1.02]'
-                    : 'bg-slate-950/70 text-slate-400 border-slate-800 hover:border-slate-700'
+                    ? 'bg-amber-600 text-white border-amber-700 shadow-md scale-[1.02]'
+                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                 }`}
               >
-                <Zap className="w-4 h-4 text-yellow-400" />
+                <Zap className="w-4 h-4 text-amber-400" />
                 <span>Bullet</span>
               </button>
 
@@ -258,8 +283,8 @@ export const PreGame1v1Modal: React.FC<PreGame1v1ModalProps> = ({
                 onClick={() => handleCategorySelect('custom')}
                 className={`py-2.5 px-1 rounded-2xl border font-bold text-xs flex flex-col items-center gap-1 transition-all cursor-pointer ${
                   category === 'custom'
-                    ? 'bg-gradient-to-br from-cyan-500 to-indigo-600 text-white border-cyan-400 shadow-lg shadow-cyan-500/25 scale-[1.02]'
-                    : 'bg-slate-950/70 text-slate-400 border-slate-800 hover:border-slate-700'
+                    ? 'bg-amber-600 text-white border-amber-700 shadow-md scale-[1.02]'
+                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                 }`}
               >
                 <Sliders className="w-4 h-4" />
@@ -278,8 +303,8 @@ export const PreGame1v1Modal: React.FC<PreGame1v1ModalProps> = ({
                   onClick={() => setSelectedMinutes(mins)}
                   className={`py-2.5 rounded-xl border text-xs font-bold font-mono transition-all cursor-pointer ${
                     selectedMinutes === mins
-                      ? 'bg-cyan-950 text-cyan-300 border-cyan-500/80 shadow-md shadow-cyan-500/10'
-                      : 'bg-slate-950/80 text-slate-400 border-slate-800 hover:border-slate-700'
+                      ? 'bg-amber-100 text-amber-950 border-amber-400 shadow-sm font-black'
+                      : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                   }`}
                 >
                   {mins} Minutes
@@ -297,8 +322,8 @@ export const PreGame1v1Modal: React.FC<PreGame1v1ModalProps> = ({
                   onClick={() => setSelectedMinutes(mins)}
                   className={`py-2.5 rounded-xl border text-xs font-bold font-mono transition-all cursor-pointer ${
                     selectedMinutes === mins
-                      ? 'bg-cyan-950 text-cyan-300 border-cyan-500/80 shadow-md shadow-cyan-500/10'
-                      : 'bg-slate-950/80 text-slate-400 border-slate-800 hover:border-slate-700'
+                      ? 'bg-amber-100 text-amber-950 border-amber-400 shadow-sm font-black'
+                      : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                   }`}
                 >
                   {mins} Minutes
@@ -316,8 +341,8 @@ export const PreGame1v1Modal: React.FC<PreGame1v1ModalProps> = ({
                   onClick={() => setSelectedMinutes(mins)}
                   className={`py-2.5 rounded-xl border text-xs font-bold font-mono transition-all cursor-pointer ${
                     selectedMinutes === mins
-                      ? 'bg-cyan-950 text-cyan-300 border-cyan-500/80 shadow-md shadow-cyan-500/10'
-                      : 'bg-slate-950/80 text-slate-400 border-slate-800 hover:border-slate-700'
+                      ? 'bg-amber-100 text-amber-950 border-amber-400 shadow-sm font-black'
+                      : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                   }`}
                 >
                   {mins} Minute{mins > 1 ? 's' : ''}
@@ -327,21 +352,21 @@ export const PreGame1v1Modal: React.FC<PreGame1v1ModalProps> = ({
           )}
 
           {category === 'custom' && (
-            <div className="p-3.5 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-4">
+            <div className="p-3.5 bg-amber-50/50 rounded-2xl border border-amber-200/80 space-y-4">
               <Slider
-                label="Time Per Side (Max 1.5 min)"
-                min={0.25}
-                max={1.5}
-                step={0.25}
+                label="Time Per Side (Minutes)"
+                min={1}
+                max={60}
+                step={1}
                 value={customMinutes}
-                valueDisplay={`${customMinutes} Min (${Math.round(customMinutes * 60)}s)`}
+                valueDisplay={`${customMinutes} Min`}
                 onChange={(e) => setCustomMinutes(Number(e.target.value))}
               />
 
               <Slider
-                label="Increment Per Move (Max 1.5 min / 90s)"
+                label="Increment Per Move (Seconds)"
                 min={0}
-                max={90}
+                max={60}
                 step={1}
                 value={customIncrementSecs}
                 valueDisplay={`${customIncrementSecs} Seconds`}
@@ -352,18 +377,18 @@ export const PreGame1v1Modal: React.FC<PreGame1v1ModalProps> = ({
 
           {/* Side Preference */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-2">Choose Your Side</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-2">Choose Your Side</label>
             <div className="grid grid-cols-3 gap-3">
               <button
                 type="button"
                 onClick={() => setChosenSide('white')}
                 className={`py-3 rounded-2xl border font-bold text-xs flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
                   chosenSide === 'white'
-                    ? 'bg-slate-100 text-slate-950 border-white shadow-xl scale-[1.02]'
-                    : 'bg-slate-950/80 text-slate-400 border-slate-800 hover:border-slate-700'
+                    ? 'bg-white text-slate-900 border-amber-500 shadow-md scale-[1.02] ring-1 ring-amber-400'
+                    : 'bg-white/80 text-slate-600 border-slate-200 hover:border-slate-300'
                 }`}
               >
-                <span className="w-4 h-4 rounded-full bg-slate-100 border border-slate-300 shadow-sm" />
+                <span className="w-4 h-4 rounded-full bg-white border border-slate-300 shadow-sm" />
                 <span>White</span>
               </button>
 
@@ -372,11 +397,11 @@ export const PreGame1v1Modal: React.FC<PreGame1v1ModalProps> = ({
                 onClick={() => setChosenSide('black')}
                 className={`py-3 rounded-2xl border font-bold text-xs flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
                   chosenSide === 'black'
-                    ? 'bg-slate-950 text-white border-cyan-500 shadow-xl shadow-cyan-500/20 scale-[1.02]'
-                    : 'bg-slate-950/80 text-slate-400 border-slate-800 hover:border-slate-700'
+                    ? 'bg-slate-900 text-white border-slate-950 shadow-md scale-[1.02]'
+                    : 'bg-white/80 text-slate-600 border-slate-200 hover:border-slate-300'
                 }`}
               >
-                <span className="w-4 h-4 rounded-full bg-slate-950 border border-slate-700 shadow-sm" />
+                <span className="w-4 h-4 rounded-full bg-slate-900 border border-slate-700 shadow-sm" />
                 <span>Black</span>
               </button>
 
@@ -385,11 +410,11 @@ export const PreGame1v1Modal: React.FC<PreGame1v1ModalProps> = ({
                 onClick={() => setChosenSide('random')}
                 className={`py-3 rounded-2xl border font-bold text-xs flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
                   chosenSide === 'random'
-                    ? 'bg-cyan-950 text-cyan-300 border-cyan-500 shadow-xl shadow-cyan-500/20 scale-[1.02]'
-                    : 'bg-slate-950/80 text-slate-400 border-slate-800 hover:border-slate-700'
+                    ? 'bg-amber-100 text-amber-950 border-amber-400 shadow-md scale-[1.02]'
+                    : 'bg-white/80 text-slate-600 border-slate-200 hover:border-slate-300'
                 }`}
               >
-                <span className="w-4 h-4 rounded-full bg-gradient-to-r from-slate-100 to-slate-950 border border-slate-500 shadow-sm" />
+                <span className="w-4 h-4 rounded-full bg-gradient-to-r from-white to-slate-900 border border-slate-400 shadow-sm" />
                 <span>Random</span>
               </button>
             </div>
@@ -399,16 +424,16 @@ export const PreGame1v1Modal: React.FC<PreGame1v1ModalProps> = ({
         {/* Tab 1: Local PC Config */}
         {activeTab === 'local' && (
           <div className="space-y-4 pt-2">
-            <div className="p-4 bg-slate-900/80 rounded-2xl border border-slate-800 text-xs text-slate-400 leading-relaxed flex items-center gap-3.5 shadow-inner">
-              <Users className="w-8 h-8 text-cyan-400 flex-shrink-0" />
+            <div className="p-4 bg-amber-50/60 rounded-2xl border border-amber-200/80 text-xs text-slate-700 leading-relaxed flex items-center gap-3.5 shadow-sm">
+              <Users className="w-8 h-8 text-amber-700 flex-shrink-0" />
               <div>
-                <h4 className="font-extrabold text-slate-200 mb-0.5 text-sm">Local Pass & Play</h4>
+                <h4 className="font-extrabold text-slate-900 mb-0.5 text-sm font-serif-classic">Local Pass & Play</h4>
                 <p>Play against a friend on the same computer screen. Board turns rotate automatically.</p>
               </div>
             </div>
 
             <Button
-              variant="accent"
+              variant="classic"
               className="w-full py-3.5 font-extrabold rounded-2xl text-base shadow-xl"
               onClick={handleStartLocal}
             >
@@ -422,13 +447,13 @@ export const PreGame1v1Modal: React.FC<PreGame1v1ModalProps> = ({
           <div className="space-y-4 pt-1">
             {/* Player Name Input */}
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">Your Display Name</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Your Display Name</label>
               <input
                 type="text"
                 value={playerName}
                 onChange={(e) => setPlayerName(e.target.value)}
                 placeholder="Enter your name"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-200 focus:outline-none focus:border-cyan-500 shadow-inner"
+                className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-amber-500 shadow-sm"
               />
             </div>
 
@@ -442,8 +467,8 @@ export const PreGame1v1Modal: React.FC<PreGame1v1ModalProps> = ({
                 }}
                 className={`py-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                   onlineSubtype === 'create'
-                    ? 'bg-cyan-950 text-cyan-300 border-cyan-500/80 shadow-md'
-                    : 'bg-slate-950/80 text-slate-400 border-slate-800'
+                    ? 'bg-amber-100 text-amber-950 border-amber-400 shadow-sm font-black'
+                    : 'bg-white text-slate-600 border-slate-200'
                 }`}
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -458,8 +483,8 @@ export const PreGame1v1Modal: React.FC<PreGame1v1ModalProps> = ({
                 }}
                 className={`py-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                   onlineSubtype === 'join'
-                    ? 'bg-cyan-950 text-cyan-300 border-cyan-500/80 shadow-md'
-                    : 'bg-slate-950/80 text-slate-400 border-slate-800'
+                    ? 'bg-amber-100 text-amber-950 border-amber-400 shadow-sm font-black'
+                    : 'bg-white text-slate-600 border-slate-200'
                 }`}
               >
                 <LogIn className="w-3.5 h-3.5" />
@@ -469,11 +494,11 @@ export const PreGame1v1Modal: React.FC<PreGame1v1ModalProps> = ({
 
             {/* Create Room Mode */}
             {onlineSubtype === 'create' && (
-              <div className="space-y-3 p-4 bg-slate-900/80 rounded-2xl border border-slate-800 text-center">
+              <div className="space-y-3 p-4 bg-amber-50/60 rounded-2xl border border-amber-200/80 text-center">
                 {!createdRoomId ? (
                   <Button
                     variant="accent"
-                    className="w-full py-3 font-bold rounded-xl shadow-lg"
+                    className="w-full py-3 font-bold rounded-xl shadow-md"
                     onClick={handleCreateRoom}
                     disabled={isLoading}
                   >
@@ -481,23 +506,23 @@ export const PreGame1v1Modal: React.FC<PreGame1v1ModalProps> = ({
                   </Button>
                 ) : (
                   <div className="space-y-4">
-                    <div className="bg-slate-950 p-4 rounded-2xl border border-cyan-500/40 flex items-center justify-between shadow-inner">
+                    <div className="bg-white p-4 rounded-2xl border border-amber-300 flex items-center justify-between shadow-sm">
                       <div className="text-left">
-                        <span className="text-[10px] text-slate-400 uppercase font-mono block">Room Code</span>
-                        <span className="text-2xl font-black font-mono text-cyan-300 tracking-wider">
+                        <span className="text-[10px] text-slate-500 uppercase font-mono block font-bold">Room Code</span>
+                        <span className="text-2xl font-black font-mono text-amber-900 tracking-wider">
                           {createdRoomId}
                         </span>
                       </div>
                       <Button variant="secondary" size="sm" onClick={handleCopyCode} className="gap-1.5 font-bold rounded-xl">
-                        {codeCopied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-cyan-400" />}
+                        {codeCopied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-amber-700" />}
                         <span>{codeCopied ? 'Copied' : 'Copy Room Code'}</span>
                       </Button>
                     </div>
 
                     {/* Waiting Indicator */}
-                    <div className="flex items-center justify-center gap-2 py-3 bg-cyan-950/40 border border-cyan-500/20 rounded-2xl text-xs font-semibold text-cyan-300">
-                      <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
-                      <span className="animate-pulse">Waiting for the opponent to join...</span>
+                    <div className="flex items-center justify-center gap-2 py-3 bg-amber-100/60 border border-amber-300 rounded-2xl text-xs font-semibold text-amber-950">
+                      <Loader2 className="w-4 h-4 animate-spin text-amber-700" />
+                      <span className="animate-pulse">Waiting for opponent to join...</span>
                     </div>
                   </div>
                 )}
@@ -506,21 +531,21 @@ export const PreGame1v1Modal: React.FC<PreGame1v1ModalProps> = ({
 
             {/* Join Room Mode */}
             {onlineSubtype === 'join' && (
-              <div className="space-y-3 p-4 bg-slate-900/80 rounded-2xl border border-slate-800">
+              <div className="space-y-3 p-4 bg-amber-50/60 rounded-2xl border border-amber-200/80">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">Enter Room ID</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Enter Room ID</label>
                   <input
                     type="text"
                     placeholder="e.g. ROOM-8492"
                     value={joinRoomIdInput}
                     onChange={(e) => setJoinRoomIdInput(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-mono uppercase text-slate-200 focus:outline-none focus:border-cyan-500 shadow-inner"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-mono uppercase text-slate-900 focus:outline-none focus:border-amber-500 shadow-sm font-bold"
                   />
                 </div>
 
                 <Button
                   variant="accent"
-                  className="w-full py-3 font-bold rounded-xl shadow-lg"
+                  className="w-full py-3 font-bold rounded-xl shadow-md"
                   onClick={handleJoinRoom}
                   disabled={isLoading || !joinRoomIdInput.trim()}
                 >
@@ -534,4 +559,5 @@ export const PreGame1v1Modal: React.FC<PreGame1v1ModalProps> = ({
     </Modal>
   );
 };
+
 
