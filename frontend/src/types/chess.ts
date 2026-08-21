@@ -117,3 +117,30 @@ export interface GameAnalysisResponseDTO {
   blackBlunderCount?: number;
   blackMissCount?: number;
 }
+
+export type CoachPersona = 'grandmaster' | 'enthusiastic' | 'tactical';
+
+export interface AiCoachRequest {
+  fen: string;
+  san: string;
+  color: 'w' | 'b';
+  moveNumber: number;
+  classification: MoveClassification;
+  evalCp: number;
+  winPercentage: number;
+  winDrop: number;
+  bestMoveSan?: string;
+  pv?: string;
+  coachPersona?: CoachPersona;
+  customApiKey?: string;
+}
+
+export interface AiCoachResponse {
+  success: boolean;
+  commentary: string;
+  tacticalSummary?: string;
+  suggestedLine?: string;
+  speechScript?: string;
+  provider: 'GROQ' | 'HEURISTIC';
+  model?: string;
+}

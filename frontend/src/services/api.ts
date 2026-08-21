@@ -4,6 +4,8 @@ import type {
   GameStatusDTO,
   GameAnalysisResponseDTO,
   EngineConfig,
+  AiCoachRequest,
+  AiCoachResponse,
 } from '../types/chess';
 import type {
   CreateRoomRequest,
@@ -121,5 +123,17 @@ export const api = {
 
   getMatchmakingStatus(playerId: string): Promise<MatchmakingResponse> {
     return fetchJson<MatchmakingResponse>(`/api/multiplayer/matchmaking/status/${playerId}`);
+  },
+
+  // AI Grandmaster Coach REST APIs (Groq LLM)
+  getAiCoachCommentary(req: AiCoachRequest): Promise<AiCoachResponse> {
+    return fetchJson<AiCoachResponse>('/api/ai/coach/commentary', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    });
+  },
+
+  getAiCoachStatus(): Promise<{ isGroqConfigured: boolean; model: string; availablePersonas: string[] }> {
+    return fetchJson<{ isGroqConfigured: boolean; model: string; availablePersonas: string[] }>('/api/ai/coach/status');
   },
 };

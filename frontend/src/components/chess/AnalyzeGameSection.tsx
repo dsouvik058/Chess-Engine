@@ -19,6 +19,7 @@ import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { Modal } from '../ui/Modal';
 import { EvaluationBar } from './EvaluationBar';
+import { AiCoachPanel } from './AiCoachPanel';
 import { api } from '../../services/api';
 import type { MoveClassification } from '../../types/chess';
 import { isBookMove } from '../../utils/openingBook';
@@ -49,15 +50,6 @@ interface AnalyzeGameSectionProps {
   initialPgn?: string;
   onBackToWelcome: () => void;
 }
-
-const PIECE_SYMBOLS: Record<string, string> = {
-  p: '♟',
-  n: '♞',
-  b: '♝',
-  r: '♜',
-  q: '♛',
-  k: '♚',
-};
 
 const SAMPLE_PGN = `1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. b4 Bxb4 5. c3 Ba5 6. d4 exd4 7. O-O d3 8. Qb3 Qf6 9. e5 Qg6 10. Re1 Nge7 11. Ba3 b5 12. Qxb5 Rb8 13. Qa4 Bb6 14. Nbd2 Bb7 15. Ne4 Qf5 16. Bxd3 Qh5 17. Nf6+ gxf6 18. exf6 Rg8 19. Rad1 Qxf3 20. Rxe7+ Nxe7 21. Qxd7+ Kxd7 22. Bf5+ Ke8 23. Bd7+ Kf8 24. Bxe7# 1-0`;
 
@@ -383,9 +375,18 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
 
   useEffect(() => {
     if (scrollRef.current && currentMoveIndex > 0) {
-      const activeEl = scrollRef.current.querySelector('[data-active="true"]');
+      const activeEl = scrollRef.current.querySelector('[data-active="true"]') as HTMLElement;
       if (activeEl) {
-        activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        const container = scrollRef.current;
+        const elTop = activeEl.offsetTop;
+        const elHeight = activeEl.offsetHeight;
+        const containerHeight = container.clientHeight;
+
+        // Smoothly scroll only within the move log container without shifting the window/page
+        container.scrollTo({
+          top: Math.max(0, elTop - containerHeight / 2 + elHeight / 2),
+          behavior: 'smooth',
+        });
       }
     }
   }, [currentMoveIndex]);
@@ -485,8 +486,8 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
       {/* Main Analysis Session Workbench */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
-        {/* LEFT COLUMN: Interactive Chessboard */}
-        <div className="lg:col-span-6 flex flex-col items-center gap-4">
+        {/* LEFT COLUMN: Interactive Chessboard (Sticky on viewport) */}
+        <div className="lg:col-span-6 flex flex-col items-center gap-4 lg:sticky lg:top-20 self-start">
           <div className="relative rounded-3xl p-3.5 glass-card border-2 border-amber-200/90 shadow-2xl shadow-amber-900/10 w-full max-w-[530px] flex items-center gap-3 bg-gradient-to-b from-amber-50/80 to-white">
             {/* Real-time Vertical Evaluation Bar */}
             <EvaluationBar
@@ -662,27 +663,25 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
             </div>
           </div>
 
-          {/* Active Move Quality Tag Banner */}
-          {activeMove && (
-            <div className="bg-white border border-slate-200 rounded-xl p-3 flex items-center justify-between shadow-md font-mono">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">{PIECE_SYMBOLS[activeMove.piece] || '♟'}</span>
-                <div>
-                  <div className="text-xs font-bold text-slate-900 flex items-center gap-2">
-                    <span>Move {activeMove.moveNumber}: {activeMove.san}</span>
-                    <Badge type={activeMove.classification}>{activeMove.classification}</Badge>
-                  </div>
-                  <span className="text-[10px] text-slate-500">Played by {activeMove.color === 'w' ? 'White' : 'Black'}</span>
-                </div>
-              </div>
-
-              {activeMove.bestMoveSan && activeMove.bestMoveSan !== activeMove.san && (
-                <div className="text-right text-[11px] font-mono text-emerald-700 font-bold">
-                  <span>Best was: <strong className="text-emerald-800">{activeMove.bestMoveSan}</strong></span>
-                </div>
-              )}
-            </div>
-          )}
+          {/* Interactive AI Grandmaster Coach with Voice Narration */}
+          <AiCoachPanel
+            currentMove={
+              activeMove
+                ? {
+                    moveNumber: activeMove.moveNumber,
+                    color: activeMove.color,
+                    san: activeMove.san,
+                    classification: activeMove.classification,
+                    evalCp: activeMove.evalCpAfter,
+                    winPercentage: activeMove.winPercentageAfter,
+                    winDrop: activeMove.winDrop,
+                    bestMoveSan: activeMove.bestMoveSan,
+                    pv: activeMove.pv,
+                    fen: activeMove.fenAfter,
+                  }
+                : null
+            }
+          />
 
           {/* Move History Log */}
           <div className="glass-card rounded-2xl border border-slate-200 p-4 shadow-xl shadow-slate-200/50 bg-white flex flex-col h-[340px]">
