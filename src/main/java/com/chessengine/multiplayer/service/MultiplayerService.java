@@ -9,4 +9,5 @@ public interface MultiplayerService {
     GameRoom processMove(MultiplayerMoveDTO move);
     GameRoom resignMatch(String roomId, String playerId);
     GameRoom getRoom(String roomId);
+    GameRoom createMatchedRoom(String whitePlayerId, String whitePlayerName, String blackPlayerId, String blackPlayerName, double timeControlMinutes);
 }

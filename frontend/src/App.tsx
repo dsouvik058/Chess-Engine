@@ -20,6 +20,7 @@ import { WelcomePage } from './components/layout/WelcomePage';
 import { PreGameModal } from './components/chess/PreGameModal';
 import type { TimeControlConfig } from './components/chess/PreGameModal';
 import { PreGame1v1Modal } from './components/chess/PreGame1v1Modal';
+import { PlayMultiplayerOnlineModal } from './components/chess/PlayMultiplayerOnlineModal';
 import { ChessBoardContainer } from './components/chess/ChessBoardContainer';
 import { EvaluationBar } from './components/chess/EvaluationBar';
 import { MoveHistoryLog } from './components/chess/MoveHistoryLog';
@@ -112,6 +113,7 @@ export function App() {
   // Modals state
   const [isPreGameBotOpen, setIsPreGameBotOpen] = useState<boolean>(false);
   const [isPreGame1v1Open, setIsPreGame1v1Open] = useState<boolean>(false);
+  const [isPlayMultiplayerOnlineOpen, setIsPlayMultiplayerOnlineOpen] = useState<boolean>(false);
 
   const [gameOverTitle, setGameOverTitle] = useState<string | null>(null);
   const [gameOverMessage, setGameOverMessage] = useState<string | null>(null);
@@ -792,6 +794,7 @@ export function App() {
       {viewMode === 'WELCOME' ? (
         <WelcomePage
           onSelectBubbleBot={() => setIsPreGameBotOpen(true)}
+          onSelectMultiplayerOnline={() => setIsPlayMultiplayerOnlineOpen(true)}
           onSelect1v1={() => setIsPreGame1v1Open(true)}
           onSelectAnalyze={() => {
             setAnalysisPgn('');
@@ -915,6 +918,16 @@ export function App() {
         onStartLocalGame={handleStartLocal1v1}
         onStartOnlineGame={handleStartOnline1v1}
         initialRoomId={urlRoomId}
+      />
+
+      {/* Play Multiplayer Online Modal (Global Matchmaking with 20s Bot Fallback) */}
+      <PlayMultiplayerOnlineModal
+        isOpen={isPlayMultiplayerOnlineOpen}
+        onClose={() => setIsPlayMultiplayerOnlineOpen(false)}
+        userElo={currentUser?.eloRating || elo || 1500}
+        userName={currentUser?.name || myName || 'Grandmaster'}
+        onStartOnlineGame={handleStartOnline1v1}
+        onFallbackToBot={handleStartBubbleBotMatch}
       />
 
       {/* Game Over Victory Reason Modal with 4 Working Buttons */}

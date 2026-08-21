@@ -168,6 +168,48 @@ export class WebSocketService {
     });
   }
 
+  private currentMatchmakingSub: StompSubscription | null = null;
+
+  public subscribeToMatchmaking(
+    playerId: string,
+    onMatchFound: (data: any) => void
+  ) {
+    if (!this.client || !this.isConnected) return null;
+
+    if (this.currentMatchmakingSub) {
+      try {
+        this.currentMatchmakingSub.unsubscribe();
+      } catch (e) {
+        console.warn('Failed to unsubscribe previous matchmaking sub:', e);
+      }
+      this.currentMatchmakingSub = null;
+    }
+
+    this.currentMatchmakingSub = this.client.subscribe(
+      `/topic/matchmaking/${playerId}`,
+      (message: IMessage) => {
+        try {
+          const payload = JSON.parse(message.body);
+          console.log(`[STOMP /topic/matchmaking/${playerId}]`, payload);
+          onMatchFound(payload);
+        } catch (e) {
+          console.error('Failed to parse matchmaking message:', e);
+        }
+      }
+    );
+
+    return this.currentMatchmakingSub;
+  }
+
+  public unsubscribeFromMatchmaking() {
+    if (this.currentMatchmakingSub) {
+      try {
+        this.currentMatchmakingSub.unsubscribe();
+      } catch (e) {}
+      this.currentMatchmakingSub = null;
+    }
+  }
+
   public disconnect() {
     if (this.currentRoomSub) {
       try { this.currentRoomSub.unsubscribe(); } catch (e) {}
@@ -176,6 +218,10 @@ export class WebSocketService {
     if (this.currentChatSub) {
       try { this.currentChatSub.unsubscribe(); } catch (e) {}
       this.currentChatSub = null;
+    }
+    if (this.currentMatchmakingSub) {
+      try { this.currentMatchmakingSub.unsubscribe(); } catch (e) {}
+      this.currentMatchmakingSub = null;
     }
     if (this.client) {
       this.client.deactivate();

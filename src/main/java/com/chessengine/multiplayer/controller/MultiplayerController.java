@@ -5,6 +5,9 @@ import com.chessengine.dto.CreateRoomRequestDTO;
 import com.chessengine.dto.JoinRoomRequestDTO;
 import com.chessengine.dto.MultiplayerMoveDTO;
 import com.chessengine.dto.RoomResponseDTO;
+import com.chessengine.dto.MatchmakingRequestDTO;
+import com.chessengine.dto.MatchmakingResponseDTO;
+import com.chessengine.multiplayer.service.MatchmakingService;
 import com.chessengine.multiplayer.listener.WebSocketEventListener;
 import com.chessengine.multiplayer.model.GameRoom;
 import com.chessengine.multiplayer.service.MultiplayerService;
@@ -27,8 +30,31 @@ import java.util.Map;
 public class MultiplayerController {
 
     private final MultiplayerService multiplayerService;
+    private final MatchmakingService matchmakingService;
     private final SimpMessagingTemplate messagingTemplate;
     private final WebSocketEventListener eventListener;
+
+    @PostMapping("/api/multiplayer/matchmaking/join")
+    public ResponseEntity<MatchmakingResponseDTO> joinMatchmaking(@RequestBody MatchmakingRequestDTO request) {
+        log.info("Received matchmaking join request from {} (Rating: {}, Time: {}m)",
+                request.getPlayerName(), request.getElo(), request.getTimeControlMinutes());
+        MatchmakingResponseDTO response = matchmakingService.joinMatchmaking(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/api/multiplayer/matchmaking/cancel")
+    public ResponseEntity<MatchmakingResponseDTO> cancelMatchmaking(@RequestBody Map<String, String> body) {
+        String playerId = body.get("playerId");
+        log.info("Received matchmaking cancel request for player {}", playerId);
+        MatchmakingResponseDTO response = matchmakingService.cancelMatchmaking(playerId);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/api/multiplayer/matchmaking/status/{playerId}")
+    public ResponseEntity<MatchmakingResponseDTO> getMatchmakingStatus(@PathVariable String playerId) {
+        MatchmakingResponseDTO response = matchmakingService.getStatus(playerId);
+        return ResponseEntity.ok(response);
+    }
 
     @PostMapping({"/api/multiplayer/create", "/api/multiplayer/room/create"})
     public ResponseEntity<RoomResponseDTO> createRoom(@RequestBody CreateRoomRequestDTO request) {

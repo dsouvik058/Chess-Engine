@@ -10,6 +10,8 @@ import type {
   JoinRoomRequest,
   RoomResponse,
   GameRoom,
+  MatchmakingRequest,
+  MatchmakingResponse,
 } from '../types/multiplayer';
 
 const BASE_URL = import.meta.env.VITE_API_URL || '';
@@ -100,5 +102,24 @@ export const api = {
         keepalive: true,
       }).catch(() => {});
     }
+  },
+
+  // Matchmaking REST APIs
+  joinMatchmaking(req: MatchmakingRequest): Promise<MatchmakingResponse> {
+    return fetchJson<MatchmakingResponse>('/api/multiplayer/matchmaking/join', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    });
+  },
+
+  cancelMatchmaking(playerId: string): Promise<MatchmakingResponse> {
+    return fetchJson<MatchmakingResponse>('/api/multiplayer/matchmaking/cancel', {
+      method: 'POST',
+      body: JSON.stringify({ playerId }),
+    });
+  },
+
+  getMatchmakingStatus(playerId: string): Promise<MatchmakingResponse> {
+    return fetchJson<MatchmakingResponse>(`/api/multiplayer/matchmaking/status/${playerId}`);
   },
 };

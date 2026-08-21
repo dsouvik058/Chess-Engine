@@ -158,6 +158,33 @@ public class MultiplayerServiceImpl implements MultiplayerService {
         return room;
     }
 
+    @Override
+    public GameRoom createMatchedRoom(String whitePlayerId, String whitePlayerName, String blackPlayerId, String blackPlayerName, double timeControlMinutes) {
+        String roomId = generateRoomId();
+        long timeControlMs = Math.round(timeControlMinutes * 60 * 1000L);
+
+        GameRoom room = GameRoom.builder()
+                .roomId(roomId)
+                .hostPlayerId(whitePlayerId)
+                .guestPlayerId(blackPlayerId)
+                .whitePlayerId(whitePlayerId)
+                .blackPlayerId(blackPlayerId)
+                .whitePlayerName(whitePlayerName != null ? whitePlayerName : "Player 1")
+                .blackPlayerName(blackPlayerName != null ? blackPlayerName : "Player 2")
+                .currentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+                .moveHistory(new ArrayList<>())
+                .timeControlMinutes(timeControlMinutes)
+                .whiteTimeMs(timeControlMs)
+                .blackTimeMs(timeControlMs)
+                .status("IN_PROGRESS")
+                .build();
+
+        activeRooms.put(roomId, room);
+        log.info("Direct matched room created: {} (White: {} [{}] vs Black: {} [{}])",
+                roomId, whitePlayerName, whitePlayerId, blackPlayerName, blackPlayerId);
+        return room;
+    }
+
     private String generateRoomId() {
         String characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         StringBuilder sb = new StringBuilder("ROOM-");

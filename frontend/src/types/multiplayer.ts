@@ -54,3 +54,25 @@ export interface ChatMessage {
   message: string;
   timestamp?: string | number;
 }
+
+export interface MatchmakingRequest {
+  playerId?: string;
+  playerName?: string;
+  elo?: number;
+  timeControlMinutes?: number;
+  incrementSeconds?: number;
+  category?: string;
+  preferredColor?: 'white' | 'black' | 'random';
+}
+
+export interface MatchmakingResponse {
+  status: 'QUEUED' | 'MATCHED' | 'CANCELLED' | 'NOT_FOUND' | 'TIMEOUT';
+  roomId?: string;
+  playerId?: string;
+  playerColor?: 'white' | 'black';
+  opponentName?: string;
+  opponentElo?: number;
+  timeControlMinutes?: number;
+  incrementSeconds?: number;
+  room?: GameRoom;
+}
