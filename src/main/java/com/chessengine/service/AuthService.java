@@ -272,6 +272,43 @@ public class AuthService {
                 .build();
     }
 
+    @Transactional
+    public AuthResponseDTO updateUserGameStats(String token, int newElo, boolean isWin) {
+        UserDTO user = verifyTokenAndGetUser(token);
+        if (user == null) {
+            return AuthResponseDTO.builder()
+                    .success(false)
+                    .message("Unauthorized user")
+                    .build();
+        }
+
+        Optional<UserEntity> userOpt = userRepository.findById(user.getId());
+        if (userOpt.isEmpty()) {
+            return AuthResponseDTO.builder()
+                    .success(false)
+                    .message("User not found")
+                    .build();
+        }
+
+        UserEntity userEntity = userOpt.get();
+        userEntity.setEloRating(newElo);
+        userEntity.setGamesPlayed((userEntity.getGamesPlayed() != null ? userEntity.getGamesPlayed() : 0) + 1);
+        if (isWin) {
+            userEntity.setWins((userEntity.getWins() != null ? userEntity.getWins() : 0) + 1);
+        }
+
+        userRepository.save(userEntity);
+        log.info("Updated game stats & rating in PostgreSQL for user {}: rating={} ELO, games={}, wins={}",
+                userEntity.getUsername(), newElo, userEntity.getGamesPlayed(), userEntity.getWins());
+
+        return AuthResponseDTO.builder()
+                .success(true)
+                .message("User stats updated successfully!")
+                .token(token != null ? token.replace("Bearer ", "").trim() : "")
+                .user(toUserDTO(userEntity))
+                .build();
+    }
+
     public UserDTO verifyTokenAndGetUser(String token) {
         if (token == null || token.trim().isEmpty()) {
             return null;

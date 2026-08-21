@@ -262,6 +262,24 @@ export function App() {
     setBlackCaptured(blackCaps);
   };
 
+  // Helper to persist rating update and win count to PostgreSQL database
+  const recordMatchEnd = useCallback((isWin: boolean, isDraw: boolean = false) => {
+    if (!currentUser) return;
+    const currentRating = currentUser.eloRating || elo || 1500;
+    let delta = 0;
+    if (!isDraw) {
+      delta = isWin ? 15 : -15;
+    }
+    const newRating = Math.max(100, currentRating + delta);
+
+    authApi.updateGameStats(newRating, isWin).then((res) => {
+      if (res.success && res.user) {
+        setCurrentUser(res.user);
+        setElo(res.user.eloRating || newRating);
+      }
+    }).catch(() => {});
+  }, [currentUser, elo]);
+
   // Check Game Over conditions after every move
   const checkGameOverState = useCallback((g: Chess) => {
     if (g.isCheckmate()) {
@@ -269,6 +287,9 @@ export function App() {
       setGameOverTitle('Checkmate!');
       setGameOverMessage(`${winner} won by Checkmate!`);
       soundFx.playGameOver();
+
+      const isWin = (g.turn() === 'w' && userColor === 'black') || (g.turn() === 'b' && userColor === 'white');
+      recordMatchEnd(isWin, false);
 
       // Dual-cannon celebratory fireworks
       try {
@@ -299,8 +320,9 @@ export function App() {
       setGameOverTitle('Draw!');
       setGameOverMessage(reason);
       soundFx.playGameOver();
+      recordMatchEnd(false, true);
     }
-  }, []);
+  }, [userColor, recordMatchEnd]);
 
   // Fetch Stockfish evaluation for current FEN to update Eval Bar dynamically (Bubble Bot mode only)
   const updateEvaluation = useCallback(async (currentFen: string) => {

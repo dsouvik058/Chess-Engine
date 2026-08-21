@@ -103,6 +103,27 @@ export const authApi = {
     }
   },
 
+  async updateGameStats(newElo: number, isWin: boolean): Promise<AuthResponse> {
+    const token = this.getToken();
+    try {
+      const res = await fetch(`${BASE_URL}/api/auth/update-stats`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ newElo, isWin }),
+      });
+      const json: AuthResponse = await res.json();
+      return json;
+    } catch (err: any) {
+      return {
+        success: false,
+        message: err.message || 'Failed to update user stats.',
+      };
+    }
+  },
+
   async getCurrentUser(): Promise<User | null> {
     const token = this.getToken();
     if (!token) return null;

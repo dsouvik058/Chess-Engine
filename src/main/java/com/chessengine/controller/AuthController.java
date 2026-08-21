@@ -64,6 +64,20 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/update-stats")
+    public ResponseEntity<AuthResponseDTO> updateStats(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestBody Map<String, Object> payload) {
+        int newElo = payload.get("newElo") instanceof Number ? ((Number) payload.get("newElo")).intValue() : 1500;
+        boolean isWin = Boolean.TRUE.equals(payload.get("isWin"));
+        log.info("Updating user stats: newElo={}, isWin={}", newElo, isWin);
+        AuthResponseDTO response = authService.updateUserGameStats(authHeader, newElo, isWin);
+        if (!response.isSuccess()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/me")
     public ResponseEntity<Object> getCurrentUser(@RequestHeader(value = "Authorization", required = false) String authHeader) {
         UserDTO user = authService.verifyTokenAndGetUser(authHeader);
