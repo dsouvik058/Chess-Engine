@@ -35,6 +35,13 @@ public class AiCoachController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/batch-commentary")
+    public ResponseEntity<java.util.List<AiCoachResponseDTO>> getBatchCommentary(@RequestBody java.util.List<AiCoachRequestDTO> requests) {
+        log.info("Generating batch AI coach commentary for {} moves", requests != null ? requests.size() : 0);
+        java.util.List<AiCoachResponseDTO> responses = aiCoachService.generateBatchCommentary(requests);
+        return ResponseEntity.ok(responses);
+    }
+
     @GetMapping("/status")
     public ResponseEntity<Map<String, Object>> getStatus() {
         Map<String, Object> status = new HashMap<>();

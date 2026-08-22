@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AiCoachRequestDTO {
+    private Integer moveIndex;
     private String fen;
     private String san;
     private String color; // "w" or "b"

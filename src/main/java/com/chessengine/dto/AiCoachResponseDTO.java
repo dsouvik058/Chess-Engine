@@ -17,4 +17,8 @@ public class AiCoachResponseDTO {
     private String speechScript;
     private String provider; // "GROQ" or "HEURISTIC"
     private String model;
+    private Integer moveIndex;
+    private Integer moveNumber;
+    private String color;
+    private String san;
 }

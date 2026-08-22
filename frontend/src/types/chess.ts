@@ -121,6 +121,7 @@ export interface GameAnalysisResponseDTO {
 export type CoachPersona = 'grandmaster' | 'enthusiastic' | 'tactical';
 
 export interface AiCoachRequest {
+  moveIndex?: number;
   fen: string;
   san: string;
   color: 'w' | 'b';
@@ -143,4 +144,8 @@ export interface AiCoachResponse {
   speechScript?: string;
   provider: 'GROQ' | 'HEURISTIC';
   model?: string;
+  moveIndex?: number;
+  moveNumber?: number;
+  color?: string;
+  san?: string;
 }

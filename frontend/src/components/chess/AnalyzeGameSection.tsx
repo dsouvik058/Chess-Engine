@@ -14,6 +14,8 @@ import {
   FileText,
   RotateCcw,
   History,
+  Loader2,
+  Check,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
@@ -21,7 +23,7 @@ import { Modal } from '../ui/Modal';
 import { EvaluationBar } from './EvaluationBar';
 import { AiCoachPanel } from './AiCoachPanel';
 import { api } from '../../services/api';
-import type { MoveClassification } from '../../types/chess';
+import type { MoveClassification, AiCoachResponse, AiCoachRequest, CoachPersona } from '../../types/chess';
 import { isBookMove } from '../../utils/openingBook';
 import { soundFx } from '../../utils/sound';
 
@@ -116,11 +118,18 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
   const [isModalOpen, setIsModalOpen] = useState<boolean>(!initialPgn);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [analysisProgress, setAnalysisProgress] = useState<{ current: number; total: number } | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   const [analyzedMoves, setAnalyzedMoves] = useState<AnalyzedMove[]>([]);
   const [currentMoveIndex, setCurrentMoveIndex] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isFlipped, setIsFlipped] = useState<boolean>(false);
+  const [preloadedCommentaries, setPreloadedCommentaries] = useState<AiCoachResponse[]>([]);
+  const [isAiActive, setIsAiActive] = useState<boolean>(false);
+  const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
+  const [aiProgress, setAiProgress] = useState<{ current: number; total: number } | null>(null);
+  const [isAiReady, setIsAiReady] = useState<boolean>(false);
+  const [coachPersona, setCoachPersona] = useState<CoachPersona>('grandmaster');
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -132,30 +141,41 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
     if (!pgnStrToAnalyze.trim()) return;
     setIsAnalyzing(true);
     setIsPlaying(false);
+    setAnalysisError(null);
+    setPreloadedCommentaries([]);
+    setIsAiActive(false);
+    setIsAiLoading(false);
+    setIsAiReady(false);
+    setAiProgress(null);
 
     try {
       const tempGame = new Chess();
       let pgnValid = false;
+      let parseErr: string | null = null;
 
       try {
         tempGame.loadPgn(pgnStrToAnalyze.trim());
         pgnValid = true;
-      } catch {
+      } catch (err: any) {
+        parseErr = err?.message || 'Invalid move or notation';
         const cleaned = pgnStrToAnalyze.replace(/\[.*?\]/g, '').replace(/\d+\./g, '').trim();
         const moveTokens = cleaned.split(/\s+/).filter((t) => t && !t.includes('-'));
         const fallbackGame = new Chess();
         for (const tok of moveTokens) {
           try {
             fallbackGame.move(tok);
-          } catch {
+          } catch (mErr: any) {
+            parseErr = `Illegal move encountered: "${tok}"`;
             break;
           }
         }
-        tempGame.load(fallbackGame.fen());
-        pgnValid = fallbackGame.history().length > 0;
+        if (fallbackGame.history().length > 0) {
+          tempGame.load(fallbackGame.fen());
+        }
       }
 
       if (!pgnValid) {
+        setAnalysisError(parseErr || 'Could not parse PGN. Please verify the game notation and legal moves.');
         setIsAnalyzing(false);
         return;
       }
@@ -258,6 +278,56 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
       setIsAnalyzing(false);
     }
   }, []);
+
+  const handleStartAiAnalysis = async (personaToUse?: CoachPersona) => {
+    if (!analyzedMoves || analyzedMoves.length === 0) return;
+    const activePersona = personaToUse || coachPersona;
+    setIsAiLoading(true);
+    setIsAiActive(false);
+    setIsAiReady(false);
+    setPreloadedCommentaries([]);
+    setAiProgress({ current: 0, total: analyzedMoves.length });
+
+    const customGroqKey = localStorage.getItem('chess_groq_api_key') || undefined;
+    const allRequests: AiCoachRequest[] = analyzedMoves.map((m, idx) => ({
+      moveIndex: idx,
+      moveNumber: m.moveNumber,
+      color: m.color,
+      san: m.san,
+      classification: m.classification,
+      evalCp: m.evalCpAfter,
+      winPercentage: m.winPercentageAfter,
+      winDrop: m.winDrop,
+      bestMoveSan: m.bestMoveSan,
+      pv: m.pv,
+      fen: m.fenAfter,
+      coachPersona: activePersona,
+      customApiKey: customGroqKey,
+    }));
+
+    const chunkSize = 4;
+    const accumulated: AiCoachResponse[] = [];
+
+    try {
+      for (let i = 0; i < allRequests.length; i += chunkSize) {
+        const chunk = allRequests.slice(i, i + chunkSize);
+        const resList = await api.getAiCoachBatchCommentary(chunk);
+        if (resList && Array.isArray(resList)) {
+          accumulated.push(...resList);
+          setPreloadedCommentaries([...accumulated]);
+        }
+        setAiProgress({ current: Math.min(i + chunk.length, allRequests.length), total: allRequests.length });
+      }
+
+      setIsAiReady(true);
+      setIsAiActive(true);
+      soundFx.playCheck();
+    } catch (err) {
+      console.error('AI Analysis failed:', err);
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
 
   // Auto-run if initialPgn passed
   useEffect(() => {
@@ -424,12 +494,26 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
 
             <textarea
               value={pgnText}
-              onChange={(e) => setPgnText(e.target.value)}
+              onChange={(e) => {
+                setPgnText(e.target.value);
+                if (analysisError) setAnalysisError(null);
+              }}
               placeholder="Paste PGN string here (e.g. 1. e4 e5 2. Nf3 Nc6...)"
               rows={5}
               className="w-full bg-white border border-slate-300 rounded-xl p-3 text-xs font-mono text-slate-900 focus:outline-none focus:border-amber-500 transition-all resize-y select-all shadow-sm font-semibold"
             />
           </div>
+
+          {/* Analysis Error Notification Banner */}
+          {analysisError && (
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-medium space-y-1 animate-in fade-in">
+              <div className="font-bold flex items-center gap-1.5 text-rose-900">
+                <span className="text-rose-600 font-black">⚠</span> PGN Notation Error:
+              </div>
+              <p className="font-mono text-[11px] text-rose-700">{analysisError}</p>
+              <p className="text-[11px] text-slate-600 pt-0.5">Please check move numbers and legal piece movements in your PGN text.</p>
+            </div>
+          )}
 
           {/* Real-Time Analysis Progress */}
           {isAnalyzing && analysisProgress && (
@@ -561,6 +645,114 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
               <span>Analyze New PGN</span>
             </Button>
           </div>
+
+          {/* DEDICATED SECTION: Analyze Game with AI Coach */}
+          <div className="w-full max-w-[530px] rounded-3xl border-2 border-indigo-200/90 bg-gradient-to-br from-indigo-900 via-indigo-950 to-slate-950 text-white p-5 shadow-2xl space-y-4 animate-in fade-in">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-400 via-amber-500 to-amber-600 text-slate-950 flex items-center justify-center font-bold shadow-lg shadow-amber-500/20">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black tracking-wide font-serif-classic text-amber-300">
+                    Analyze Game with AI Coach
+                  </h4>
+                  <p className="text-[11px] text-indigo-200/80">
+                    Grandmaster voice narration & dynamic tactical breakdown
+                  </p>
+                </div>
+              </div>
+
+              {/* Persona Selector */}
+              {!isAiLoading && (
+                <select
+                  value={coachPersona}
+                  onChange={(e) => {
+                    const newP = e.target.value as CoachPersona;
+                    setCoachPersona(newP);
+                    if (isAiActive) {
+                      handleStartAiAnalysis(newP);
+                    }
+                  }}
+                  className="bg-indigo-900/90 border border-indigo-400/40 text-white text-xs font-bold rounded-xl px-2.5 py-1.5 focus:outline-none cursor-pointer"
+                >
+                  <option value="grandmaster">🎓 GM Magnus</option>
+                  <option value="enthusiastic">⚡ Coach Hikaru</option>
+                  <option value="tactical">⚔️ Tactical Master</option>
+                </select>
+              )}
+            </div>
+
+            {/* Dynamic Content based on State */}
+            {!isAiLoading && !isAiReady && (
+              <div className="flex items-center justify-between pt-1">
+                <p className="text-xs text-indigo-200/70">
+                  {analyzedMoves.length} moves available for AI pre-calculation.
+                </p>
+                <Button
+                  variant="accent"
+                  size="sm"
+                  onClick={() => handleStartAiAnalysis()}
+                  disabled={analyzedMoves.length === 0}
+                  className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black shadow-lg flex items-center gap-2 text-xs py-2.5 px-4 rounded-xl cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4 fill-current" />
+                  <span>Analyze Game with AI</span>
+                </Button>
+              </div>
+            )}
+
+            {/* Loading Progress State */}
+            {isAiLoading && aiProgress && (
+              <div className="space-y-2 pt-1 animate-in fade-in">
+                <div className="flex items-center justify-between text-xs font-mono font-bold">
+                  <span className="text-amber-300 flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                    Processing Move {aiProgress.current} of {aiProgress.total} with Groq AI...
+                  </span>
+                  <span className="text-emerald-400 text-sm font-black">
+                    {Math.round((aiProgress.current / (aiProgress.total || 1)) * 100)}%
+                  </span>
+                </div>
+                <div className="w-full bg-indigo-950/80 rounded-full h-3 overflow-hidden border border-indigo-500/40 p-0.5">
+                  <div
+                    className="bg-gradient-to-r from-amber-400 via-amber-500 to-emerald-400 h-full rounded-full transition-all duration-300 shadow-md shadow-amber-400/30"
+                    style={{ width: `${(aiProgress.current / (aiProgress.total || 1)) * 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Ready & Active State */}
+            {isAiReady && !isAiLoading && (
+              <div className="flex items-center justify-between pt-1 animate-in fade-in">
+                <div className="flex items-center gap-2 text-xs text-emerald-300 font-bold">
+                  <Check className="w-4 h-4 text-emerald-400" />
+                  <span>AI Ready ({preloadedCommentaries.length} moves cached)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentMoveIndex(1);
+                      setIsAiActive(true);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 font-extrabold text-xs shadow-lg shadow-amber-400/30 flex items-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <span>⏮ Start Review (Move 1)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleStartAiAnalysis()}
+                    className="px-3.5 py-2 rounded-xl bg-indigo-800/90 hover:bg-indigo-700 text-white font-bold text-xs border border-indigo-400/40 transition-all cursor-pointer"
+                  >
+                    🔄 Re-Analyze
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* RIGHT COLUMN: Accuracy Cards, Navigation & Move Logs */}
@@ -668,6 +860,7 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
             currentMove={
               activeMove
                 ? {
+                    moveIndex: currentMoveIndex - 1,
                     moveNumber: activeMove.moveNumber,
                     color: activeMove.color,
                     san: activeMove.san,
@@ -681,6 +874,12 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
                   }
                 : null
             }
+            allMoves={analyzedMoves}
+            preloadedCommentaries={preloadedCommentaries}
+            isAiActive={isAiActive}
+            isAiLoading={isAiLoading}
+            coachPersona={coachPersona}
+            autoSpeakDefault={true}
           />
 
           {/* Move History Log */}

@@ -62,6 +62,8 @@ class VoiceSynthesizer {
     this.stop();
 
     const cleanText = text
+      .replace(/<think>[\s\S]*?<\/think>/gi, '') // remove think blocks
+      .replace(/<think>[\s\S]*/gi, '') // remove unclosed think tags
       .replace(/[*#_~`]/g, '') // remove markdown artifacts
       .replace(/(\d+)\./g, '$1.')
       .trim();

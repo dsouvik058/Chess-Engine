@@ -133,6 +133,13 @@ export const api = {
     });
   },
 
+  getAiCoachBatchCommentary(requests: AiCoachRequest[]): Promise<AiCoachResponse[]> {
+    return fetchJson<AiCoachResponse[]>('/api/ai/coach/batch-commentary', {
+      method: 'POST',
+      body: JSON.stringify(requests),
+    });
+  },
+
   getAiCoachStatus(): Promise<{ isGroqConfigured: boolean; model: string; availablePersonas: string[] }> {
     return fetchJson<{ isGroqConfigured: boolean; model: string; availablePersonas: string[] }>('/api/ai/coach/status');
   },

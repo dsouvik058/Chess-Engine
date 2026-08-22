@@ -12,6 +12,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.*;
 
 @Slf4j
 @Service
@@ -44,6 +45,10 @@ public class AiCoachServiceImpl implements AiCoachService {
                     .commentary("Groq API Key is not configured. Please enter your API key to enable live AI analysis.")
                     .speechScript("")
                     .provider("GROQ")
+                    .moveIndex(request.getMoveIndex())
+                    .moveNumber(request.getMoveNumber())
+                    .color(request.getColor())
+                    .san(request.getSan())
                     .build();
         }
 
@@ -56,7 +61,32 @@ public class AiCoachServiceImpl implements AiCoachService {
                     .commentary("AI Coach could not generate commentary: " + e.getMessage())
                     .speechScript("")
                     .provider("GROQ")
+                    .moveIndex(request.getMoveIndex())
+                    .moveNumber(request.getMoveNumber())
+                    .color(request.getColor())
+                    .san(request.getSan())
                     .build();
+        }
+    }
+
+    @Override
+    public List<AiCoachResponseDTO> generateBatchCommentary(List<AiCoachRequestDTO> requests) {
+        if (requests == null || requests.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        int poolSize = Math.min(requests.size(), 10);
+        ExecutorService executor = Executors.newFixedThreadPool(poolSize);
+        try {
+            List<CompletableFuture<AiCoachResponseDTO>> futures = requests.stream()
+                    .map(req -> CompletableFuture.supplyAsync(() -> generateMoveCommentary(req), executor))
+                    .toList();
+
+            return futures.stream()
+                    .map(CompletableFuture::join)
+                    .toList();
+        } finally {
+            executor.shutdown();
         }
     }
 
@@ -102,6 +132,8 @@ public class AiCoachServiceImpl implements AiCoachService {
         if (groqModel != null && !groqModel.trim().isEmpty()) {
             candidateModels.add(groqModel.trim());
         }
+        if (!candidateModels.contains("llama-3.3-70b-versatile")) candidateModels.add("llama-3.3-70b-versatile");
+        if (!candidateModels.contains("llama-3.1-8b-instant")) candidateModels.add("llama-3.1-8b-instant");
         if (!candidateModels.contains("openai/gpt-oss-120b")) candidateModels.add("openai/gpt-oss-120b");
         if (!candidateModels.contains("openai/gpt-oss-20b")) candidateModels.add("openai/gpt-oss-20b");
         if (!candidateModels.contains("qwen/qwen3.6-27b")) candidateModels.add("qwen/qwen3.6-27b");
@@ -117,8 +149,8 @@ public class AiCoachServiceImpl implements AiCoachService {
 
                 Map<String, Object> body = new HashMap<>();
                 body.put("model", targetModel);
-                body.put("temperature", 0.75);
-                body.put("max_tokens", 250);
+                body.put("temperature", 0.7);
+                body.put("max_tokens", 450);
 
                 List<Map<String, String>> messages = new ArrayList<>();
                 messages.add(Map.of("role", "system", "content", systemPrompt));
@@ -136,8 +168,8 @@ public class AiCoachServiceImpl implements AiCoachService {
                         Map message = (Map) firstChoice.get("message");
                         String content = (String) message.get("content");
 
-                        if (content != null && !content.trim().isEmpty()) {
-                            String cleanContent = content.trim();
+                        String cleanContent = cleanAiResponse(content);
+                        if (!cleanContent.isEmpty()) {
                             return AiCoachResponseDTO.builder()
                                     .success(true)
                                     .commentary(cleanContent)
@@ -146,6 +178,10 @@ public class AiCoachServiceImpl implements AiCoachService {
                                     .suggestedLine(request.getBestMoveSan())
                                     .provider("GROQ")
                                     .model(targetModel)
+                                    .moveIndex(request.getMoveIndex())
+                                    .moveNumber(request.getMoveNumber())
+                                    .color(request.getColor())
+                                    .san(request.getSan())
                                     .build();
                         }
                     }
@@ -160,6 +196,21 @@ public class AiCoachServiceImpl implements AiCoachService {
                 .commentary("Could not reach Groq AI models. Please check your API key.")
                 .speechScript("")
                 .provider("GROQ")
+                .moveIndex(request.getMoveIndex())
+                .moveNumber(request.getMoveNumber())
+                .color(request.getColor())
+                .san(request.getSan())
                 .build();
+    }
+
+    private String cleanAiResponse(String raw) {
+        if (raw == null) return "";
+        // Remove closed <think>...</think> blocks
+        String cleaned = raw.replaceAll("(?s)<think>.*?</think>", "");
+        // Remove unclosed <think> blocks (in case generation stopped mid-thought)
+        cleaned = cleaned.replaceAll("(?s)<think>.*", "");
+        // Remove markdown title hashes like "### " while preserving punctuation
+        cleaned = cleaned.replaceAll("(?m)^#+\\s*", "");
+        return cleaned.trim();
     }
 }
