@@ -44,6 +44,7 @@ interface AiCoachPanelProps {
   autoSpeakDefault?: boolean;
 }
 
+const OPENROUTER_STORAGE_KEY = 'chess_openrouter_api_key';
 const GROQ_STORAGE_KEY = 'chess_groq_api_key';
 
 export const AiCoachPanel: React.FC<AiCoachPanelProps> = ({
@@ -58,7 +59,6 @@ export const AiCoachPanel: React.FC<AiCoachPanelProps> = ({
   const [speechScript, setSpeechScript] = useState<string>('');
   const [tacticalSummary, setTacticalSummary] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [modelName, setModelName] = useState<string>('Groq AI');
 
   // Voice States
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
@@ -73,8 +73,14 @@ export const AiCoachPanel: React.FC<AiCoachPanelProps> = ({
 
   // Load custom key from localStorage on mount
   useEffect(() => {
-    const savedKey = localStorage.getItem(GROQ_STORAGE_KEY) || '';
-    setCustomApiKey(savedKey);
+    localStorage.removeItem(GROQ_STORAGE_KEY);
+    const savedKey = localStorage.getItem(OPENROUTER_STORAGE_KEY) || '';
+    if (savedKey.startsWith('gsk_')) {
+      localStorage.removeItem(OPENROUTER_STORAGE_KEY);
+      setCustomApiKey('');
+    } else {
+      setCustomApiKey(savedKey);
+    }
   }, []);
 
   // Store preloaded commentaries into cache
@@ -104,7 +110,6 @@ export const AiCoachPanel: React.FC<AiCoachPanelProps> = ({
         setCommentary(cached.commentary);
         setSpeechScript(cached.speechScript || cached.commentary);
         setTacticalSummary(cached.tacticalSummary || '');
-        setModelName(cached.model || 'Groq AI');
         setIsLoading(false);
       }
     }
@@ -123,7 +128,7 @@ export const AiCoachPanel: React.FC<AiCoachPanelProps> = ({
 
   // Fetch / Display AI commentary whenever the selected move changes
   useEffect(() => {
-    if (!isAiActive) {
+    if (!isAiActive || isAiLoading) {
       voiceSynthesizer.stop();
       return;
     }
@@ -145,7 +150,6 @@ export const AiCoachPanel: React.FC<AiCoachPanelProps> = ({
       setCommentary(cached.commentary);
       setSpeechScript(cached.speechScript || cached.commentary);
       setTacticalSummary(cached.tacticalSummary || '');
-      setModelName(cached.model || 'Groq AI');
       setIsLoading(false);
 
       if (autoSpeak && !isMuted && cached.speechScript) {
@@ -180,7 +184,6 @@ export const AiCoachPanel: React.FC<AiCoachPanelProps> = ({
         setCommentary(res.commentary);
         setSpeechScript(res.speechScript || res.commentary);
         setTacticalSummary(res.tacticalSummary || '');
-        setModelName(res.model || 'Groq AI');
 
         if (autoSpeak && !isMuted && (res.speechScript || res.commentary)) {
           voiceSynthesizer.speak(res.speechScript || res.commentary, { persona: coachPersona });
@@ -199,7 +202,7 @@ export const AiCoachPanel: React.FC<AiCoachPanelProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [currentMove, coachPersona, customApiKey, autoSpeak, isMuted, isAiActive]);
+  }, [currentMove, coachPersona, customApiKey, autoSpeak, isMuted, isAiActive, isAiLoading]);
 
   const handleToggleSpeak = () => {
     if (isSpeaking) {
@@ -310,15 +313,15 @@ export const AiCoachPanel: React.FC<AiCoachPanelProps> = ({
                 </div>
 
                 <span className="text-[10px] font-mono text-indigo-800 font-bold bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200">
-                  {tacticalSummary || `Analyzed by ${modelName}`}
+                  {tacticalSummary || (currentMove ? `${currentMove.classification.toUpperCase()} MOVE` : 'TACTICAL VISION')}
                 </span>
               </div>
             )}
 
             <p className="text-xs text-slate-700 leading-relaxed font-medium">
               {isAiActive
-                ? commentary || 'Select or navigate to any move in the game to receive live Grandmaster AI commentary.'
-                : 'AI Analysis is not started yet. Click "Analyze Game with AI" below the chessboard to generate spoken move-by-move commentary.'}
+                ? commentary || 'Select or navigate to any move in the game to receive live Grandmaster commentary.'
+                : 'Click "Analyze Game with Souvik\'s BOT" below the chessboard to generate spoken move-by-move commentary.'}
             </p>
 
             {isAiActive && currentMove?.bestMoveSan && currentMove.bestMoveSan !== currentMove.san && (

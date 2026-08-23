@@ -85,39 +85,8 @@ public class ChessServiceImpl implements ChessService {
         for (int i = 0; i < moves.size(); i++) {
             String playerColor = (i % 2 == 0) ? "white" : "black";
             int moveNum = (i / 2) + 1;
-            List<String> movesAfter = moves.subList(0, i + 1);
-            List<String> sanAfter = (sanMoves != null && sanMoves.size() >= i + 1) ? sanMoves.subList(0, i + 1) : movesAfter;
-
-            // --- 1. Book move check: skip engine calls entirely for known opening theory ---
-            boolean isBook = OpeningBook.isBookMove(sanAfter);
-            if (isBook) {
-                cachedEvalForNextBefore = null; // Invalidate cache — no eval computed
-                evaluations.add(MoveAnalysisDTO.builder()
-                        .moveIndex(i + 1)
-                        .moveNumber(moveNum)
-                        .playerColor(playerColor)
-                        .move(moves.get(i))
-                        .evaluation("+0.20")
-                        .scoreType("cp")
-                        .scoreValue(20)
-                        .evalCpBefore(20)
-                        .evalCpAfter(20)
-                        .winPercentageBefore(52.5)
-                        .winPercentageAfter(52.5)
-                        .classification("book")
-                        .winDrop(0.0)
-                        .build());
-                if ("white".equals(playerColor)) {
-                    whiteWinDrops.add(0.0);
-                    wBook++;
-                } else {
-                    blackWinDrops.add(0.0);
-                    bBook++;
-                }
-                continue;
-            }
-
             List<String> movesBefore = moves.subList(0, i);
+            List<String> movesAfter = moves.subList(0, i + 1);
 
             // --- 2. Evaluate position BEFORE move i (active player perspective, MultiPV=2) ---
             // Reuse cached evaluation from the previous iteration when available.

@@ -21,11 +21,11 @@ public class AiCoachController {
 
     private final AiCoachService aiCoachService;
 
-    @Value("${groq.api-key:}")
-    private String groqApiKey;
+    @Value("${openrouter.api-key:}")
+    private String openrouterApiKey;
 
-    @Value("${groq.model:llama-3.3-70b-versatile}")
-    private String groqModel;
+    @Value("${openrouter.model:qwen/qwen-2.5-7b-instruct}")
+    private String openrouterModel;
 
     @PostMapping("/commentary")
     public ResponseEntity<AiCoachResponseDTO> getMoveCommentary(@RequestBody AiCoachRequestDTO request) {
@@ -45,9 +45,11 @@ public class AiCoachController {
     @GetMapping("/status")
     public ResponseEntity<Map<String, Object>> getStatus() {
         Map<String, Object> status = new HashMap<>();
-        boolean isConfigured = groqApiKey != null && !groqApiKey.trim().isEmpty() && !groqApiKey.startsWith("YOUR_");
+        boolean isConfigured = openrouterApiKey != null && !openrouterApiKey.trim().isEmpty() && !openrouterApiKey.startsWith("YOUR_");
+        status.put("isConfigured", isConfigured);
         status.put("isGroqConfigured", isConfigured);
-        status.put("model", groqModel);
+        status.put("model", openrouterModel);
+        status.put("provider", "OPENROUTER");
         status.put("availablePersonas", new String[]{"grandmaster", "enthusiastic", "tactical"});
         return ResponseEntity.ok(status);
     }

@@ -18,33 +18,34 @@ import java.util.concurrent.*;
 @Service
 public class AiCoachServiceImpl implements AiCoachService {
 
-    @Value("${groq.api-key:}")
-    private String groqApiKey;
+    @Value("${openrouter.api-key:}")
+    private String openrouterApiKey;
 
-    @Value("${groq.model:openai/gpt-oss-120b}")
-    private String groqModel;
+    @Value("${openrouter.model:qwen/qwen-2.5-7b-instruct}")
+    private String openrouterModel;
 
     private final RestTemplate restTemplate;
 
     public AiCoachServiceImpl(RestTemplateBuilder builder) {
         this.restTemplate = builder
                 .setConnectTimeout(Duration.ofSeconds(6))
-                .setReadTimeout(Duration.ofSeconds(12))
+                .setReadTimeout(Duration.ofSeconds(15))
                 .build();
     }
 
     @Override
     public AiCoachResponseDTO generateMoveCommentary(AiCoachRequestDTO request) {
-        String activeKey = (request.getCustomApiKey() != null && !request.getCustomApiKey().trim().isEmpty())
-                ? request.getCustomApiKey().trim()
-                : (groqApiKey != null ? groqApiKey.trim() : "");
+        String custom = request.getCustomApiKey() != null ? request.getCustomApiKey().trim() : "";
+        String activeKey = (!custom.isEmpty() && !custom.startsWith("gsk_") && !custom.startsWith("YOUR_"))
+                ? custom
+                : (openrouterApiKey != null ? openrouterApiKey.trim() : "");
 
         if (activeKey.isEmpty() || activeKey.startsWith("YOUR_")) {
             return AiCoachResponseDTO.builder()
                     .success(false)
-                    .commentary("Groq API Key is not configured. Please enter your API key to enable live AI analysis.")
+                    .commentary("OpenRouter API Key is not configured. Please configure your API key to enable live AI commentary.")
                     .speechScript("")
-                    .provider("GROQ")
+                    .provider("OPENROUTER")
                     .moveIndex(request.getMoveIndex())
                     .moveNumber(request.getMoveNumber())
                     .color(request.getColor())
@@ -53,14 +54,15 @@ public class AiCoachServiceImpl implements AiCoachService {
         }
 
         try {
-            return callGroqApi(request, activeKey);
+            return callOpenRouterApi(request, activeKey);
         } catch (Exception e) {
-            log.error("Groq AI call failed: {}", e.getMessage());
+            log.error("OpenRouter AI call failed: {}", e.getMessage());
+            String fallback = generateRuleBasedCommentary(request);
             return AiCoachResponseDTO.builder()
-                    .success(false)
-                    .commentary("AI Coach could not generate commentary: " + e.getMessage())
-                    .speechScript("")
-                    .provider("GROQ")
+                    .success(true)
+                    .commentary(fallback)
+                    .speechScript(fallback)
+                    .provider("ENGINE")
                     .moveIndex(request.getMoveIndex())
                     .moveNumber(request.getMoveNumber())
                     .color(request.getColor())
@@ -75,23 +77,16 @@ public class AiCoachServiceImpl implements AiCoachService {
             return Collections.emptyList();
         }
 
-        int poolSize = Math.min(requests.size(), 10);
-        ExecutorService executor = Executors.newFixedThreadPool(poolSize);
-        try {
-            List<CompletableFuture<AiCoachResponseDTO>> futures = requests.stream()
-                    .map(req -> CompletableFuture.supplyAsync(() -> generateMoveCommentary(req), executor))
-                    .toList();
-
-            return futures.stream()
-                    .map(CompletableFuture::join)
-                    .toList();
-        } finally {
-            executor.shutdown();
+        // Process moves sequentially (synchronously one-by-one) without parallel skipping
+        List<AiCoachResponseDTO> results = new ArrayList<>(requests.size());
+        for (AiCoachRequestDTO req : requests) {
+            results.add(generateMoveCommentary(req));
         }
+        return results;
     }
 
-    private AiCoachResponseDTO callGroqApi(AiCoachRequestDTO request, String apiKey) {
-        String endpoint = "https://api.groq.com/openai/v1/chat/completions";
+    private AiCoachResponseDTO callOpenRouterApi(AiCoachRequestDTO request, String apiKey) {
+        String endpoint = "https://openrouter.ai/api/v1/chat/completions";
 
         String persona = request.getCoachPersona() != null ? request.getCoachPersona().toLowerCase() : "grandmaster";
         String personaInstruction;
@@ -104,10 +99,10 @@ public class AiCoachServiceImpl implements AiCoachService {
         }
 
         String systemPrompt = personaInstruction +
-                " Your task is to analyze the move played in the position and provide a 2-3 sentence live spoken explanation. " +
+                " Your task is to analyze the move played in the position and provide a 1-2 sentence live spoken explanation. " +
                 "Explain why the move was classified as it was (e.g. Brilliant, Best, Blunder, Mistake), " +
                 "what the move achieves or what was missed, and reference the best alternative if it was not the best move. " +
-                "Do NOT use markdown headers or bullet points. Output only natural speech sentences suitable for Text-to-Speech narration.";
+                "Do NOT output thinking traces, markdown headers, or bullet points. Output ONLY 1-2 natural speech sentences suitable for Text-to-Speech narration.";
 
         String playerSide = "w".equalsIgnoreCase(request.getColor()) ? "White" : "Black";
         String userPrompt = String.format(
@@ -128,29 +123,22 @@ public class AiCoachServiceImpl implements AiCoachService {
                 request.getFen()
         );
 
-        List<String> candidateModels = new ArrayList<>();
-        if (groqModel != null && !groqModel.trim().isEmpty()) {
-            candidateModels.add(groqModel.trim());
-        }
-        if (!candidateModels.contains("llama-3.3-70b-versatile")) candidateModels.add("llama-3.3-70b-versatile");
-        if (!candidateModels.contains("llama-3.1-8b-instant")) candidateModels.add("llama-3.1-8b-instant");
-        if (!candidateModels.contains("openai/gpt-oss-120b")) candidateModels.add("openai/gpt-oss-120b");
-        if (!candidateModels.contains("openai/gpt-oss-20b")) candidateModels.add("openai/gpt-oss-20b");
-        if (!candidateModels.contains("qwen/qwen3.6-27b")) candidateModels.add("qwen/qwen3.6-27b");
-        if (!candidateModels.contains("groq/compound")) candidateModels.add("groq/compound");
-        if (!candidateModels.contains("groq/compound-mini")) candidateModels.add("groq/compound-mini");
-        if (!candidateModels.contains("allam-2-7b")) candidateModels.add("allam-2-7b");
+        String targetModel = (openrouterModel != null && !openrouterModel.trim().isEmpty())
+                ? openrouterModel.trim()
+                : "qwen/qwen-2.5-7b-instruct";
 
-        for (String targetModel : candidateModels) {
+        for (int attempt = 1; attempt <= 4; attempt++) {
             try {
                 HttpHeaders headers = new HttpHeaders();
                 headers.setContentType(MediaType.APPLICATION_JSON);
                 headers.setBearerAuth(apiKey);
+                headers.set("HTTP-Referer", "http://localhost:8080");
+                headers.set("X-Title", "Chess Engine");
 
                 Map<String, Object> body = new HashMap<>();
                 body.put("model", targetModel);
-                body.put("temperature", 0.7);
-                body.put("max_tokens", 450);
+                body.put("temperature", 0.5);
+                body.put("max_tokens", 150);
 
                 List<Map<String, String>> messages = new ArrayList<>();
                 messages.add(Map.of("role", "system", "content", systemPrompt));
@@ -174,10 +162,10 @@ public class AiCoachServiceImpl implements AiCoachService {
                                     .success(true)
                                     .commentary(cleanContent)
                                     .speechScript(cleanContent)
-                                    .tacticalSummary("Analyzed by " + targetModel)
+                                    .tacticalSummary(request.getClassification() != null ? request.getClassification().toUpperCase() + " MOVE" : "GRANDMASTER ANALYSIS")
                                     .suggestedLine(request.getBestMoveSan())
-                                    .provider("GROQ")
-                                    .model(targetModel)
+                                    .provider("BOT")
+                                    .model("")
                                     .moveIndex(request.getMoveIndex())
                                     .moveNumber(request.getMoveNumber())
                                     .color(request.getColor())
@@ -187,20 +175,85 @@ public class AiCoachServiceImpl implements AiCoachService {
                     }
                 }
             } catch (Exception ex) {
-                log.warn("Groq attempt with model {} failed: {}. Trying next candidate model...", targetModel, ex.getMessage());
+                String msg = ex.getMessage() != null ? ex.getMessage() : "";
+                if (msg.contains("429") && attempt < 4) {
+                    long waitMs = parseRetryDelayMs(msg);
+                    log.warn("OpenRouter rate limit on attempt {}. Pausing {}ms before retry...", attempt, waitMs);
+                    try {
+                        Thread.sleep(waitMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                    }
+                    continue;
+                }
+
+                log.error("OpenRouter AI analysis error on attempt {} with model {}: {}", attempt, targetModel, ex.getMessage());
+                String fallbackCommentary = generateRuleBasedCommentary(request);
+                return AiCoachResponseDTO.builder()
+                        .success(true)
+                        .commentary(fallbackCommentary)
+                        .speechScript(fallbackCommentary)
+                        .tacticalSummary("Engine Commentary (" + (request.getClassification() != null ? request.getClassification().toUpperCase() : "MOVE") + ")")
+                        .suggestedLine(request.getBestMoveSan())
+                        .provider("ENGINE")
+                        .model(targetModel)
+                        .moveIndex(request.getMoveIndex())
+                        .moveNumber(request.getMoveNumber())
+                        .color(request.getColor())
+                        .san(request.getSan())
+                        .build();
             }
         }
 
+        String fallbackCommentary = generateRuleBasedCommentary(request);
         return AiCoachResponseDTO.builder()
-                .success(false)
-                .commentary("Could not reach Groq AI models. Please check your API key.")
-                .speechScript("")
-                .provider("GROQ")
+                .success(true)
+                .commentary(fallbackCommentary)
+                .speechScript(fallbackCommentary)
+                .tacticalSummary("Engine Commentary (" + (request.getClassification() != null ? request.getClassification().toUpperCase() : "MOVE") + ")")
+                .suggestedLine(request.getBestMoveSan())
+                .provider("ENGINE")
+                .model(targetModel)
                 .moveIndex(request.getMoveIndex())
                 .moveNumber(request.getMoveNumber())
                 .color(request.getColor())
                 .san(request.getSan())
                 .build();
+    }
+
+    private long parseRetryDelayMs(String msg) {
+        if (msg == null) return 4500L;
+        try {
+            java.util.regex.Matcher mSec = java.util.regex.Pattern.compile("try again in\\s+([0-9.]+)\\s*s", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(msg);
+            if (mSec.find()) {
+                double secs = Double.parseDouble(mSec.group(1));
+                return (long) (secs * 1000) + 700L;
+            }
+            java.util.regex.Matcher mMs = java.util.regex.Pattern.compile("try again in\\s+([0-9.]+)\\s*ms", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(msg);
+            if (mMs.find()) {
+                double ms = Double.parseDouble(mMs.group(1));
+                return (long) ms + 500L;
+            }
+        } catch (Exception ignored) {}
+        return 4500L;
+    }
+
+    private String generateRuleBasedCommentary(AiCoachRequestDTO request) {
+        String side = "w".equalsIgnoreCase(request.getColor()) ? "White" : "Black";
+        String quality = request.getClassification() != null ? request.getClassification().toLowerCase() : "solid";
+        double eval = request.getEvalCp() / 100.0;
+        String evalText = (eval >= 0 ? "+" : "") + String.format(Locale.US, "%.2f", eval);
+
+        if ("blunder".equals(quality) || "mistake".equals(quality)) {
+            String bestText = (request.getBestMoveSan() != null && !request.getBestMoveSan().trim().isEmpty() && !"None".equalsIgnoreCase(request.getBestMoveSan()))
+                    ? " Stockfish recommends " + request.getBestMoveSan() + " instead."
+                    : "";
+            return side + " played " + request.getSan() + " (" + quality + "), leaving the evaluation at " + evalText + "." + bestText;
+        } else if ("brilliant".equals(quality) || "great".equals(quality)) {
+            return "A " + quality + " move with " + request.getSan() + " by " + side + "! The evaluation stands at " + evalText + ".";
+        } else {
+            return side + " played " + request.getSan() + " (" + quality + " move), holding the position at " + evalText + ".";
+        }
     }
 
     private String cleanAiResponse(String raw) {

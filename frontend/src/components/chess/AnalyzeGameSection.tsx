@@ -129,7 +129,7 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
   const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
   const [aiProgress, setAiProgress] = useState<{ current: number; total: number } | null>(null);
   const [isAiReady, setIsAiReady] = useState<boolean>(false);
-  const [coachPersona, setCoachPersona] = useState<CoachPersona>('grandmaster');
+  const coachPersona: CoachPersona = 'grandmaster';
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -288,7 +288,12 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
     setPreloadedCommentaries([]);
     setAiProgress({ current: 0, total: analyzedMoves.length });
 
-    const customGroqKey = localStorage.getItem('chess_groq_api_key') || undefined;
+    let customKey = localStorage.getItem('chess_openrouter_api_key') || undefined;
+    if (customKey && customKey.startsWith('gsk_')) {
+      localStorage.removeItem('chess_openrouter_api_key');
+      localStorage.removeItem('chess_groq_api_key');
+      customKey = undefined;
+    }
     const allRequests: AiCoachRequest[] = analyzedMoves.map((m, idx) => ({
       moveIndex: idx,
       moveNumber: m.moveNumber,
@@ -302,21 +307,23 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
       pv: m.pv,
       fen: m.fenAfter,
       coachPersona: activePersona,
-      customApiKey: customGroqKey,
+      customApiKey: customKey,
     }));
 
-    const chunkSize = 4;
     const accumulated: AiCoachResponse[] = [];
 
     try {
-      for (let i = 0; i < allRequests.length; i += chunkSize) {
-        const chunk = allRequests.slice(i, i + chunkSize);
-        const resList = await api.getAiCoachBatchCommentary(chunk);
-        if (resList && Array.isArray(resList)) {
-          accumulated.push(...resList);
+      for (let i = 0; i < allRequests.length; i++) {
+        const req = allRequests[i];
+        const res = await api.getAiCoachCommentary(req);
+        if (res) {
+          accumulated.push(res);
           setPreloadedCommentaries([...accumulated]);
         }
-        setAiProgress({ current: Math.min(i + chunk.length, allRequests.length), total: allRequests.length });
+        setAiProgress({ current: i + 1, total: allRequests.length });
+        if (i < allRequests.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 1800));
+        }
       }
 
       setIsAiReady(true);
@@ -646,7 +653,7 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
             </Button>
           </div>
 
-          {/* DEDICATED SECTION: Analyze Game with AI Coach */}
+          {/* DEDICATED SECTION: Analyze Game with Souvik's BOT */}
           <div className="w-full max-w-[530px] rounded-3xl border-2 border-indigo-200/90 bg-gradient-to-br from-indigo-900 via-indigo-950 to-slate-950 text-white p-5 shadow-2xl space-y-4 animate-in fade-in">
             {/* Header */}
             <div className="flex items-center justify-between">
@@ -656,39 +663,20 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
                 </div>
                 <div>
                   <h4 className="text-sm font-black tracking-wide font-serif-classic text-amber-300">
-                    Analyze Game with AI Coach
+                    Analyze Game with Souvik's BOT
                   </h4>
                   <p className="text-[11px] text-indigo-200/80">
-                    Grandmaster voice narration & dynamic tactical breakdown
+                    Voice analysis. Tactical vision.
                   </p>
                 </div>
               </div>
-
-              {/* Persona Selector */}
-              {!isAiLoading && (
-                <select
-                  value={coachPersona}
-                  onChange={(e) => {
-                    const newP = e.target.value as CoachPersona;
-                    setCoachPersona(newP);
-                    if (isAiActive) {
-                      handleStartAiAnalysis(newP);
-                    }
-                  }}
-                  className="bg-indigo-900/90 border border-indigo-400/40 text-white text-xs font-bold rounded-xl px-2.5 py-1.5 focus:outline-none cursor-pointer"
-                >
-                  <option value="grandmaster">🎓 GM Magnus</option>
-                  <option value="enthusiastic">⚡ Coach Hikaru</option>
-                  <option value="tactical">⚔️ Tactical Master</option>
-                </select>
-              )}
             </div>
 
             {/* Dynamic Content based on State */}
             {!isAiLoading && !isAiReady && (
               <div className="flex items-center justify-between pt-1">
                 <p className="text-xs text-indigo-200/70">
-                  {analyzedMoves.length} moves available for AI pre-calculation.
+                  {analyzedMoves.length} moves ready for breakdown.
                 </p>
                 <Button
                   variant="accent"
@@ -698,7 +686,7 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
                   className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black shadow-lg flex items-center gap-2 text-xs py-2.5 px-4 rounded-xl cursor-pointer"
                 >
                   <Sparkles className="w-4 h-4 fill-current" />
-                  <span>Analyze Game with AI</span>
+                  <span>Analyze Game with Souvik's BOT</span>
                 </Button>
               </div>
             )}
@@ -709,7 +697,7 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
                 <div className="flex items-center justify-between text-xs font-mono font-bold">
                   <span className="text-amber-300 flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
-                    Processing Move {aiProgress.current} of {aiProgress.total} with Groq AI...
+                    Analyzing Move {aiProgress.current} of {aiProgress.total}...
                   </span>
                   <span className="text-emerald-400 text-sm font-black">
                     {Math.round((aiProgress.current / (aiProgress.total || 1)) * 100)}%
@@ -729,7 +717,7 @@ export const AnalyzeGameSection: React.FC<AnalyzeGameSectionProps> = ({
               <div className="flex items-center justify-between pt-1 animate-in fade-in">
                 <div className="flex items-center gap-2 text-xs text-emerald-300 font-bold">
                   <Check className="w-4 h-4 text-emerald-400" />
-                  <span>AI Ready ({preloadedCommentaries.length} moves cached)</span>
+                  <span>Analysis Ready ({preloadedCommentaries.length} moves analyzed)</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
