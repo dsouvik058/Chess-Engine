@@ -1,0 +1,35 @@
+services:
+  # Web Service: Spring Boot + React + Stockfish Engine
+  - type: web
+    name: chess-engine-app
+    env: docker
+    dockerfilePath: Dockerfile
+    plan: free
+    region: oregon
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: qwen/qwen-2.5-7b-instruct
+      - key: SPRING_DATASOURCE_URL
+        fromDatabase:
+          name: chess-engine-db
+          property: connectionString
+      - key: SPRING_DATASOURCE_USERNAME
+        fromDatabase:
+          name: chess-engine-db
+          property: user
+      - key: SPRING_DATASOURCE_PASSWORD
+        fromDatabase:
+          name: chess-engine-db
+          property: password
+
+databases:
+  # PostgreSQL Managed Database (Free Tier)
+  - name: chess-engine-db
+    databaseName: chess_engine
+    user: chess_user
+    plan: free
+    region: oregon
