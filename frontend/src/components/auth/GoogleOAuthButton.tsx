@@ -20,7 +20,9 @@ export const GoogleOAuthButton: React.FC<GoogleOAuthButtonProps> = ({
   const [showSimulatedModal, setShowSimulatedModal] = useState(false);
   const [customGoogleEmail, setCustomGoogleEmail] = useState('');
   const [customGoogleName, setCustomGoogleName] = useState('');
-  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  const clientId =
+    import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+    '275182809772-sobrhit7srg97o74fbs7ud3uslm09de8.apps.googleusercontent.com';
 
   useEffect(() => {
     // If real Google Client ID is set, load Google Identity Services SDK
