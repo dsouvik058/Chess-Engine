@@ -1,347 +1,300 @@
-# Analyze Game — Backend Logic Documentation
+# 📊 Analyze Game & AI Coach — Complete Technical Architecture & Workflow Documentation
 
-## Overview
-
-The **Analyze Game** feature takes a complete list of chess moves (a played game) and evaluates every single move using the Stockfish engine. It produces per-move classifications (brilliant, blunder, etc.), win-percentage tracking, and overall accuracy scores for both White and Black — similar to Chess.com's game review.
+This document provides a comprehensive end-to-end technical guide for the **Analyze Game & AI Coach** platform across both the **Frontend (React 19 / TypeScript / Web Speech API)** and the **Backend (Java / Spring Boot 3 / Stockfish 18 MultiPV Engine / OpenRouter LLM)**.
 
 ---
 
-## Architecture & Data Flow
+## 1. Overview & Architecture
+
+The **Analyze Game** section provides master-level post-match chess analysis with:
+1. **Move Classification**: Categorizes every ply into 10 distinct classes (**Brilliant**, **Great**, **Best**, **Excellent**, **Good**, **Book**, **Inaccuracy**, **Mistake**, **Blunder**, **Miss**).
+2. **Mathematical Accuracy (CAPS)**: Calculates player accuracy percentage ($0.0\% - 100.0\%$) based on average win-percentage drop per move.
+3. **Interactive Visual Board**: Displays dynamic tactical colored arrows (Best Move in Green, Played Move colored by classification), square highlights, and evaluation bars.
+4. **AI Chess Coach**: Generates natural language move commentary and strategic insights with multiple personas (**Grandmaster**, **Enthusiastic**, **Tactical**) and real-time **Text-to-Speech (TTS)** voice synthesis.
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│                              FRONTEND (React 19)                           │
+│                                                                            │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │ AnalyzeGameSection.tsx                                               │  │
+│  │ - PGN Import / Handover from Match                                   │  │
+│  │ - Step-by-Step Navigation & Autoplay                                 │  │
+│  │ - Visual Move Arrows (Best Move vs Played Move)                      │  │
+│  │ - EvaluationBar & Advantage Timeline Chart                           │  │
+│  └──────────────────┬───────────────────────────────────┬───────────────┘  │
+│                     │                                   │                  │
+│                     ▼                                   ▼                  │
+│       ┌───────────────────────────┐       ┌───────────────────────────┐    │
+│       │ AiCoachPanel.tsx          │       │ voiceSynthesizer.ts       │    │
+│       │ (Personas & LLM Guidance) │◀─────▶│ (Web Speech API TTS)      │    │
+│       └─────────────┬─────────────┘       └───────────────────────────┘    │
+└─────────────────────┼───────────────────────────────────┼──────────────────┘
+                      │ HTTP POST (`/api/chess/analyze`)  │ HTTP POST (`/api/ai/coach/commentary`)
+                      ▼                                   ▼
+┌────────────────────────────────────────────────────────────────────────────┐
+│                          BACKEND (Spring Boot 3)                           │
+│                                                                            │
+│   ┌────────────────────────────────┐    ┌──────────────────────────────┐   │
+│   │ ChessController.java           │    │ AiCoachController.java       │   │
+│   │ `POST /api/chess/analyze`      │    │ `POST /api/ai/coach/*`       │   │
+│   └───────────────┬────────────────┘    └──────────────┬───────────────┘   │
+│                   │                                    │                   │
+│                   ▼                                    ▼                   │
+│   ┌────────────────────────────────┐    ┌──────────────────────────────┐   │
+│   │ ChessServiceImpl.java          │    │ AiCoachServiceImpl.java      │   │
+│   │ - MultiPV=2 Search Engine      │    │ - OpenRouter API Client      │   │
+│   │ - Win Drop & Accuracy Formulas │    │ - Rule-based Fallback Engine │   │
+│   │ - N+1 Evaluation Caching       │    │                              │   │
+│   └───────────────┬────────────────┘    └──────────────┬───────────────┘   │
+└───────────────────┼────────────────────────────────────┼───────────────────┘
+                    │                                    │
+                    ▼                                    ▼
+       ┌─────────────────────────┐          ┌─────────────────────────┐
+       │ Stockfish 18 UCI Binary │          │ OpenRouter LLM Endpoint │
+       │ (`bin/stockfish.exe`)   │          │ (`qwen-2.5-7b-instruct`)│
+       └─────────────────────────┘          └─────────────────────────┘
+```
+
+---
+
+## 2. End-to-End Workflow Diagrams
+
+### 2.1 Deep Game Analysis & Classification Pipeline
 
 ```mermaid
 sequenceDiagram
-    participant FE as Frontend
-    participant CC as ChessController
-    participant CS as ChessServiceImpl
-    participant SPM as StockfishProcessManager
-    participant UCI as UciProtocolHandler
-    participant SF as Stockfish Engine
-    participant OB as OpeningBook
+    autonumber
+    actor User as Player / Analyst
+    participant UI as AnalyzeGameSection.tsx
+    participant API as api.ts (HTTP Client)
+    participant Controller as ChessController.java
+    participant Service as ChessServiceImpl.java
+    participant Stockfish as Stockfish 18 Engine Process
 
-    FE->>CC: POST /api/chess/analyze<br/>{fen, moves[], elo, movetime, depth}
-    CC->>CS: analyzeGame(request)
-    
-    loop For each move i in moves[]
-        CS->>OB: isBookMove(moves[0..i])
-        CS->>SPM: calculateBestMove(fen, moves[0..i-1], multiPV=2)
-        SPM->>UCI: buildPositionCommand / buildGoCommand
-        UCI->>SF: position fen ... moves ...<br/>go movetime ...
-        SF-->>UCI: info ... score ... pv ...<br/>bestmove ...
-        UCI-->>SPM: GameStatusDTO (before)
+    Note over User, UI: 1. Input Game (PGN or Handover)
+    User->>UI: Pastes PGN or Clicks "Review Game" after Match
+    UI->>UI: Parse PGN into SAN & LAN move lists via chess.js
+    UI->>API: POST /api/chess/analyze (moves, sanMoves, elo=3200, movetime=150)
+    API->>Controller: HTTP POST /api/chess/analyze
+    Controller->>Service: analyzeGame(AnalyzeRequestDTO)
+
+    Note over Service, Stockfish: 2. MultiPV=2 Stockfish Search with N+1 Caching
+    loop For each Move i (0 to N-1)
+        alt Position Cached from Move (i-1)?
+            Service->>Service: Reuse cached evaluation as evalBefore
+        else Not Cached
+            Service->>Stockfish: position fen ... moves [0..i-1] -> go movetime 150
+            Stockfish-->>Service: evalBefore (MultiPV=1 Best Move & MultiPV=2)
+        end
+        Service->>Stockfish: position fen ... moves [0..i] -> go movetime 150
+        Stockfish-->>Service: evalAfter (Evaluation after played move)
+        Service->>Service: Cache evalAfter for next move (i+1)
         
-        CS->>SPM: calculateBestMove(fen, moves[0..i], multiPV=1)
-        SPM->>UCI: buildPositionCommand / buildGoCommand
-        UCI->>SF: position fen ... moves ...<br/>go movetime ...
-        SF-->>UCI: info ... score ... pv ...<br/>bestmove ...
-        UCI-->>SPM: GameStatusDTO (after)
-        
-        CS->>CS: Compute winDrop, classify move
+        Note over Service: Mathematical Classification
+        Service->>Service: Calculate Win% Before vs Win% After
+        Service->>Service: WinDrop = Win% Before - Win% After
+        Service->>Service: Determine Move Classification (Brilliant, Best, Blunder...)
     end
+
+    Note over Service, UI: 3. Accuracy Calculation & Response
+    Service->>Service: Compute White CAPS Accuracy & Black CAPS Accuracy
+    Service-->>Controller: Return GameAnalysisResponseDTO
+    Controller-->>API: 200 OK (JSON)
+    API-->>UI: Return GameAnalysisResponseDTO
+    UI->>UI: Render Move Cards, Classification Chips, Evaluation Bar & Accuracy Stats
+```
+
+---
+
+### 2.2 Interactive AI Coach Commentary & TTS Voice Synthesis
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Player
+    participant UI as AnalyzeGameSection.tsx
+    participant CoachUI as AiCoachPanel.tsx
+    participant API as api.ts
+    participant CoachCtrl as AiCoachController.java
+    participant CoachService as AiCoachServiceImpl.java
+    participant LLM as OpenRouter AI API
+    participant TTS as voiceSynthesizer.ts (Browser Speech API)
+
+    Note over User, CoachUI: 1. Move Selection & Persona
+    User->>UI: Selects Move #14 (e.g. Black plays e5 - "BLUNDER")
+    UI->>CoachUI: Passes currentMove (SAN="e5", Classification="BLUNDER", Centipawn Drop=280)
+    User->>CoachUI: Selects Coach Persona (e.g. "Grandmaster" or "Tactical")
     
-    CS->>CS: Calculate accuracy scores
-    CS-->>CC: GameAnalysisResponseDTO
-    CC-->>FE: JSON response
+    Note over CoachUI, LLM: 2. LLM Commentary Generation
+    CoachUI->>API: POST /api/ai/coach/commentary (moveNumber=14, san="e5", persona="grandmaster")
+    API->>CoachCtrl: HTTP POST /api/ai/coach/commentary
+    CoachCtrl->>CoachService: generateMoveCommentary(request)
+    
+    alt OpenRouter API Configured?
+        CoachService->>LLM: Send structured prompt (Board context, blunder delta, best move)
+        LLM-->>CoachService: Return tailored natural language coaching explanation
+    else Fallback Mode
+        CoachService->>CoachService: Generate structured rule-based coaching commentary
+    end
+
+    CoachService-->>CoachCtrl: Return AiCoachResponseDTO (commentary, speechScript)
+    CoachCtrl-->>API: 200 OK (JSON)
+    API-->>CoachUI: Receive AiCoachResponseDTO
+
+    Note over CoachUI, TTS: 3. Real-Time Speech Synthesis
+    CoachUI->>CoachUI: Display commentary card & strategic advice
+    CoachUI->>TTS: voiceSynthesizer.speak(speechScript, persona)
+    TTS->>User: Plays natural voice narration in browser
 ```
 
 ---
 
-## Layer-by-Layer Breakdown
+## 3. Move Classification & Mathematical Formulations
 
-### 1. API Layer — [ChessController.java](file:///D:/Chess%20Engine/src/main/java/com/chessengine/controller/ChessController.java)
+### 3.1 Centipawn to Win-Percentage Mapping
+Stockfish centipawn evaluations are mapped onto a standard win-probability curve ($0.0\% - 100.0\%$):
 
-**Endpoint:** `POST /api/chess/analyze`
+$$\text{Win\%} = 50 + 50 \times \left(\frac{2}{1 + e^{-0.00368208 \times \text{cp}}} - 1\right)$$
 
-Accepts an [AnalyzeRequestDTO](file:///D:/Chess%20Engine/src/main/java/com/chessengine/dto/AnalyzeRequestDTO.java) with:
-
-| Field | Type | Description |
-|---|---|---|
-| `fen` | `String` | Starting FEN (null = standard starting position) |
-| `moves` | `List<String>` | Ordered list of moves played (UCI or SAN) |
-| `pgn` | `String` | PGN string (currently unused in backend) |
-| `elo` | `Integer` | Engine strength for analysis (default: 3200) |
-| `movetime` | `Integer` | Time per position in ms (default: 150) |
-| `depth` | `Integer` | Search depth override (optional) |
-
-Returns a [GameAnalysisResponseDTO](file:///D:/Chess%20Engine/src/main/java/com/chessengine/dto/GameAnalysisResponseDTO.java).
+*For mate scores*:
+- Mate in $+N$: $\text{cp} = 30000 - (\min(N, 99) \times 100) \implies \approx 100.0\%$
+- Mate in $-N$: $\text{cp} = -30000 + (\min(|N|, 99) \times 100) \implies \approx 0.0\%$
 
 ---
 
-### 2. Service Layer — [ChessServiceImpl.analyzeGame()](file:///D:/Chess%20Engine/src/main/java/com/chessengine/service/impl/ChessServiceImpl.java#L54-L247)
+### 3.2 Win-Drop Calculation
+For active player moving from Position $A$ to Position $B$:
 
-This is the **core analysis algorithm**. Here's exactly what it does:
-
-#### Step 1: Initialization (Lines 56–76)
-
-```
-- If no moves provided → return empty analysis with 100% accuracy for both sides
-- Default elo = 3200, default movetime = 150ms
-- Initialize win-drop accumulators for White and Black
-- Initialize classification counters (book, brilliant, great, best, excellent, good, inaccuracy, mistake, blunder, miss)
-- Track `lastOpponentWinDrop` for "miss" detection
-```
-
-#### Step 2: Per-Move Loop (Lines 78–213)
-
-For **every move `i`** in the game:
-
-##### 2a. Determine context
-- `playerColor` = `"white"` if even index, `"black"` if odd
-- `movesBefore` = `moves[0..i-1]` (position before this move)
-- `movesAfter` = `moves[0..i]` (position after this move)
-
-##### 2b. Evaluate position BEFORE the move (MultiPV = 2)
-
-```java
-GameStatusDTO evalBefore = engineManager.calculateBestMove(
-    fen, movesBefore, movetime, depth, elo, 2  // MultiPV=2
-);
-```
-
-This gives us:
-- **Best move** the engine recommends
-- **Second-best move** (via MultiPV=2)
-- **Score** (centipawns or mate) from the active player's perspective
-- **Principal Variation** (PV line)
-
-##### 2c. Evaluate position AFTER the move (MultiPV = 1)
-
-```java
-GameStatusDTO evalAfter = engineManager.calculateBestMove(
-    fen, movesAfter, movetime, depth, elo, 1  // MultiPV=1
-);
-```
-
-This gives us the opponent's evaluation. The player's score is **negated** (`cpAfterPlayer = -cpAfterOpponent`) because Stockfish always reports from the side to move.
-
-##### 2d. Win Percentage Calculation
-
-Uses a **logistic model** (similar to Lichess/Chess.com):
-
-```java
-winPct = 50.0 + 50.0 * (2.0 / (1.0 + exp(-0.00368208 * centipawns)) - 1.0)
-```
-
-| Centipawns | Win % |
-|---|---|
-| 0 | 50.0% |
-| +100 | ~59.1% |
-| +300 | ~75.1% |
-| -200 | ~32.4% |
-| +30000 (mate) | ~100% |
-
-> [!NOTE]
-> Values above are computed directly from the formula in this doc. The previous revision of this table had drifted (notably -200cp was listed as ~35.7% instead of the correct ~32.4%) — if you diff test output against this table, use the corrected numbers.
-
-**Win Drop** = `max(0, winPctBefore - winPctAfter)` — how much winning chance was lost by this move.
-
-##### 2e. Move Classification
-
-The classification system follows this priority:
-
-```
-1. BOOK MOVE CHECK
-   └─ Is move in the OpeningBook? → "book" (winDrop forced to 0)
-
-2. BEST MOVE CHECK (played move == engine's #1 recommendation)
-   ├─ Sacrifice + winDrop ≤ 5%  → "brilliant"  ✦
-   ├─ Winning/critical position  → "great"      ‼
-   └─ Otherwise                  → "best"       ★
-
-3. NON-BEST MOVE (by win drop thresholds)
-   ├─ winDrop ≤ 2%   → "excellent"
-   ├─ winDrop ≤ 5%   → "good"
-   ├─ winDrop ≤ 12%  → "inaccuracy"  ?!
-   ├─ winDrop ≤ 25%  → "mistake"     ?
-   └─ winDrop > 25%
-       ├─ Was winning (≥65%) or opponent just blundered (≥20% drop) → "miss"
-       └─ Otherwise → "blunder"  ??
-```
-
-> [!IMPORTANT]
-> **Brilliant detection** uses a heuristic: the move must be the engine's top choice, involve a capture (`x`) or major piece move (`Q`/`R` prefix), and lose ≤5% win chance. This is a simplified approximation — Chess.com uses deeper analysis.
->
-> Note this is not actually a sacrifice detector — any queen recapture or routine rook lift satisfies "capture or Q/R move" and would qualify as long as win-drop stays ≤5%. There's no check that material is actually being given up. Treat "brilliant" output from this system as a loose proxy, not a true sacrifice/only-move detector.
-
-> [!TODO]
-> **"Winning/critical position" threshold for `great` is undefined here.** Every other tier in the priority list has an explicit `winDrop ≤ X%` cutoff; "great" does not. Document the actual cp/win% threshold used in code (e.g. is "winning" ≥65%, same as the miss threshold below? is "critical" a separate check on position volatility?) so this table is complete.
-
-> [!NOTE]
-> **"Miss" vs "Blunder"** distinction: A "miss" occurs when the player was already winning (≥65% win chance) or the opponent just made a big mistake (≥20% win drop). It represents failing to capitalize on an advantage rather than creating a new disadvantage.
-
-##### 2f. Mate Score Conversion
-
-Mate scores are converted to large centipawn values for uniform win-percentage calculation:
-
-```java
-mate in +N  →  +30000 - (N × 100)   // e.g., mate in 3 = +29700
-mate in -N  →  -30000 + (N × 100)   // e.g., mated in 3 = -29700
-```
-
-#### Step 3: Accuracy Calculation (Lines 215–219)
-
-Uses an **exponential decay model**:
-
-```java
-accuracy = 103.1668 × exp(-0.04354 × avgWinDrop) - 3.1669
-// Clamped to [0, 100]
-```
-
-| Avg Win Drop | Accuracy |
-|---|---|
-| 0.0 | 100.0% |
-| 2.0 | 91.4% |
-| 5.0 | 79.8% |
-| 10.0 | 63.6% |
-| 20.0 | 40.0% |
-| 50.0 | 8.5% |
-
-This is computed **separately** for White and Black based on their respective average win drops.
-
-> [!NOTE]
-> Same correction as the win-% table above — several rows here (5.0 and 10.0 in particular) had drifted from what the formula actually outputs. Recomputed directly from `103.1668 × exp(-0.04354 × x) - 3.1669`.
+$$\Delta \text{Win} = \text{Win\%}(A) - \text{Win\%}(B)$$
 
 ---
 
-### 3. Engine Communication Layer
+### 3.3 Classification Criteria Matrix
 
-#### [StockfishProcessManager](file:///D:/Chess%20Engine/src/main/java/com/chessengine/engine/process/StockfishProcessManager.java)
-
-- Manages a **single Stockfish OS process** via `ProcessBuilder`
-- All access is **`synchronized`** — thread-safe but sequential (one analysis at a time)
-- Auto-restarts the engine if the process dies
-- For each `calculateBestMove()` call:
-  1. Configures engine strength via UCI options
-  2. Sets `MultiPV` (1 or 2)
-  3. Sends `position` command with FEN + moves
-  4. Sends `isready` / waits for `readyok`
-  5. Sends `go` command
-  6. Delegates output parsing to `UciProtocolHandler`
-
-#### [UciProtocolHandler](file:///D:/Chess%20Engine/src/main/java/com/chessengine/engine/uci/UciProtocolHandler.java)
-
-Handles all UCI protocol details:
-
-- **Position commands**: `position fen <FEN> moves <move1> <move2> ...` or `position startpos moves ...`
-- **Strength control**: 
-  - ELO ≥ 3200 → Full strength (Skill Level 20, no limit)
-  - ELO 1350–3199 → `UCI_LimitStrength = true`, `UCI_Elo = <value>`
-  - ELO < 1350 → Skill Level mapped: `(elo - 400) / 50`
-- **Search commands**: `go depth <N>` or `go movetime <ms>`
-- **Output parsing**: Reads `info` lines for scores, PV, depth, nodes; stops at `bestmove`
-- **Score normalization**: Negates scores when Black is to move (Stockfish always reports from side-to-move perspective)
+| Classification | Symbol | Badge Color | Definition & Criteria |
+|---|:---:|:---:|---|
+| **Brilliant** | `!!` | Cyan | Sacrifice piece/material while maintaining or increasing winning advantage ($\Delta \text{Win} \le 0.0$ with material sacrifice). |
+| **Great** | `!` | Teal | Crucial move found in a difficult position; significantly outscores second-best alternative. |
+| **Best** | `★` | Green | The highest engine-ranked move ($\Delta \text{Win} < 0.5\%$). |
+| **Excellent** | `✓` | Emerald | Strong move near the engine's top choice ($\Delta \text{Win} \le 2.0\%$). |
+| **Good** | `👍` | Blue | Solid move maintaining position ($\Delta \text{Win} \le 5.0\%$). |
+| **Book** | `📖` | Amber | Standard recognized opening theory identified in opening book. |
+| **Inaccuracy** | `?!` | Yellow | Minor sub-optimal play ($5.0\% < \Delta \text{Win} \le 10.0\%$). |
+| **Mistake** | `?` | Orange | Significant loss of advantage ($10.0\% < \Delta \text{Win} \le 20.0\%$). |
+| **Blunder** | `??` | Red | Severe blunder swinging the game ($20.0\% < \Delta \text{Win} \le 30.0\%$). |
+| **Miss** | `✖` | Purple | Missed tactical win or missed punishment ($ \Delta \text{Win} > 30.0\%$). |
 
 ---
 
-### 4. Opening Book — [OpeningBook](file:///D:/Chess%20Engine/src/main/java/com/chessengine/util/OpeningBook.java)
+### 3.4 CAPS Accuracy Percentage Formula
+Player accuracy over an entire match is computed via the exponential win-drop decay formula:
 
-A **static hardcoded set** of ~80 common opening move sequences (up to 16 half-moves / move 8):
+$$\text{Accuracy} = \max\left(0.0, \min\left(100.0, 103.1668 \times e^{-0.04354 \times \overline{\Delta \text{Win}}} - 3.1669\right)\right)$$
 
-- Italian Game, Ruy Lopez, Scotch, King's Gambit
-- Sicilian Defense variants, French, Caro-Kann, Scandinavian
-- Queen's Gambit (Declined/Accepted), Slav, King's Indian, Nimzo-Indian
-- English, Reti, London System, Dutch, etc.
-
-Matching is done by joining the move list with spaces and checking against the set. Moves beyond move 8 are never classified as book.
+where $\overline{\Delta \text{Win}}$ is the average win-percentage drop across all non-book moves played by that player.
 
 ---
 
-## Response Structure — [GameAnalysisResponseDTO](file:///D:/Chess%20Engine/src/main/java/com/chessengine/dto/GameAnalysisResponseDTO.java)
+## 4. Frontend Architecture (`frontend/src/components/analysis/`)
 
+### 4.1 Game Review Screen (`AnalyzeGameSection.tsx`)
+- **Direct PGN Handover & Import**: Accepts raw PGN strings, clipboard pastes, or match history passed directly from Bubble Bot or Online 1v1 games.
+- **Interactive Move Navigation**:
+  - Step Forward (`ArrowRight`), Step Back (`ArrowLeft`), First Move (`Home`), Last Move (`End`).
+  - Autoplay mode with adjustable speed slider (1s - 5s).
+- **Tactical Colored Arrows**:
+  - Green Arrow: Displays engine best move.
+  - Colored Arrow: Displays played move (colored based on classification badge).
+- **Advantage & Accuracy Summary**:
+  - White Accuracy vs Black Accuracy cards.
+  - Classification Breakdown Grid (counts of Brilliant, Best, Mistakes, Blunders per side).
+  - Move-by-move evaluation advantage timeline.
+
+### 4.2 AI Coach Panel (`AiCoachPanel.tsx`)
+- **Persona Selector**:
+  - `Grandmaster`: Strategic, positional, deep tactical analysis.
+  - `Enthusiastic`: High energy, encouraging, celebrating brilliant tactics.
+  - `Tactical`: Pinpoint calculation, tactical forks, pins, and skewers.
+- **Text-to-Speech Voice Synthesizer ([voiceSynthesizer.ts](file:///d:/Chess%20Engine/frontend/src/utils/voiceSynthesizer.ts))**:
+  - Leverages browser `window.speechSynthesis`.
+  - Supports automatic narration on move step, voice pitch/rate tuning, and mute toggle.
+
+---
+
+## 5. Backend Architecture (`src/main/java/com/chessengine/`)
+
+### 5.1 Analysis Controller & Service
+- **Endpoint**: `POST /api/chess/analyze`
+- **$N+1$ Evaluation Caching Optimization**:
+  Because the position after move $i$ is identical to the position before move $i+1$, `ChessServiceImpl` caches the position evaluation after move $i$ and reuses it as `evalBefore` for move $i+1$. This cuts required Stockfish search operations from $2N$ down to $N+1$, halving analysis latency.
+
+### 5.2 AI Coach Service (`AiCoachServiceImpl.java`)
+- **OpenRouter LLM Integration**: Calls configured OpenRouter models (e.g. `qwen/qwen-2.5-7b-instruct`) with temperature `0.6` and structured system prompts.
+- **Resilient Fallback**: If no API key is provided or OpenRouter experiences downtime, smoothly generates rule-based tactical commentary based on move centipawn swing and piece interactions.
+
+---
+
+## 6. Data Transfer Objects (DTOs)
+
+### `AnalyzeRequestDTO`
 ```json
 {
-  "evaluations": [
-    {
-      "moveIndex": 1,
-      "moveNumber": 1,
-      "playerColor": "white",
-      "move": "e2e4",
-      "bestMove": "e2e4",
-      "secondBestMove": "d2d4",
-      "ponderMove": "e7e5",
-      "pv": "e2e4 e7e5 g1f3 b8c6",
-      "evaluation": "+0.30",
-      "scoreType": "cp",
-      "scoreValue": 30,
-      "evalCpBefore": 20,
-      "evalCpAfter": 30,
-      "winPercentageBefore": 53.6,
-      "winPercentageAfter": 55.4,
-      "winDrop": 0.0,
-      "classification": "book",
-      "depth": 20
-    }
-    // ... one per move
-  ],
-  "totalMoves": 40,
-  "whiteAccuracy": 87.3,
-  "blackAccuracy": 72.1,
-  "whiteBookCount": 4,       "blackBookCount": 4,
-  "whiteBrilliantCount": 1,   "blackBrilliantCount": 0,
-  "whiteGreatCount": 2,       "blackGreatCount": 1,
-  "whiteBestCount": 8,        "blackBestCount": 5,
-  "whiteExcellentCount": 3,   "blackExcellentCount": 4,
-  "whiteGoodCount": 1,        "blackGoodCount": 2,
-  "whiteInaccuracyCount": 1,  "blackInaccuracyCount": 3,
-  "whiteMistakeCount": 0,     "blackMistakeCount": 1,
-  "whiteBlunderCount": 0,     "blackBlunderCount": 0,
-  "whiteMissCount": 0,        "blackMissCount": 0
+  "moves": ["e2e4", "e7e5", "g1f3", "b8c6", "f1c4"],
+  "sanMoves": ["e4", "e5", "Nf3", "Nc6", "Bc4"],
+  "elo": 3200,
+  "movetime": 150,
+  "depth": 14
+}
+```
+
+### `MoveAnalysisDTO`
+```json
+{
+  "moveNumber": 3,
+  "color": "w",
+  "san": "Bc4",
+  "lan": "f1c4",
+  "bestMove": "f1c4",
+  "classification": "BEST",
+  "evalBefore": "+0.35",
+  "evalAfter": "+0.35",
+  "winPercentBefore": 54.2,
+  "winPercentAfter": 54.2,
+  "winDrop": 0.0,
+  "pv": "f1c4 f8c5 c2c3 g8f6",
+  "depth": 14,
+  "nodes": 42000
+}
+```
+
+### `AiCoachResponseDTO`
+```json
+{
+  "success": true,
+  "commentary": "Bc4 develops the bishop to an active diagonal, targeting the weak f7 square.",
+  "speechScript": "White plays Bishop to c4, developing actively and putting pressure on f7.",
+  "provider": "OPENROUTER",
+  "moveNumber": 3,
+  "color": "w",
+  "san": "Bc4"
 }
 ```
 
 ---
 
-## Performance Characteristics
+## 7. Verification & Run Commands
 
-| Aspect | Detail |
-|---|---|
-| **Engine calls per move** | **2** (before + after) |
-| **Total engine calls** | `2 × number_of_moves` |
-| **Thread safety** | `synchronized` on `StockfishProcessManager` — sequential |
-| **Default analysis time** | 150ms per position → ~300ms per move |
-| **40-move game** | ~80 engine calls → ~12 seconds minimum |
-| **Bottleneck** | Single Stockfish process, sequential evaluation |
+```bash
+# 1. Run Automated Unit & UI Tests
+cd frontend
+npm test
 
-> [!WARNING]
-> The analysis is **blocking and synchronous**. A 40-move game with 150ms movetime takes ~12+ seconds. The HTTP request blocks until all moves are evaluated. There is no streaming/progress feedback to the frontend.
+# 2. Start Full Stack Development
+mvn spring-boot:run
+cd frontend
+npm run dev
 
-> [!TODO]
-> **Redundant evaluations.** `movesBefore` for move `i` is the same position as `movesAfter` for move `i-1` — it gets evaluated twice: once at MultiPV=1 (as move `i-1`'s "after" state) and again at MultiPV=2 (as move `i`'s "before" state). Since MultiPV=2 output is a superset of MultiPV=1 output for the same position, the "after" evaluation for move `i-1` could likely be reused as the "before" evaluation for move `i`, roughly halving the engine call count (and the ~12s+ analysis time for a 40-move game). Worth confirming whether this caching is intentionally avoided for some reason (e.g. re-evaluating at different depth) before treating it as a straightforward win.
-
----
-
-## Open Questions
-
-These aren't answered by the current documentation and would be worth clarifying or adding:
-
-- **Book moves and engine calls** — do book moves still trigger both `calculateBestMove()` calls, or short-circuit before hitting Stockfish? The example JSON response shows `bestMove`/`evaluation` populated even for the `"book"`-classified move, suggesting calls still happen — if so, that's wasted engine work for known theory.
-- **`depth` vs `movetime` precedence** — when a request supplies both, which one does `UciProtocolHandler` honor when building the `go` command?
-- **`pgn` field** — confirmed unused by the backend. Is it reserved for a future feature, or should it be removed from `AnalyzeRequestDTO` to avoid confusion?
-- **Concurrent request handling** — given the single `synchronized` `StockfishProcessManager`, what happens to concurrent `/analyze` requests? Do they queue indefinitely, block until timeout, or get rejected?
-
----
-
-## File Map
-
-```
-src/main/java/com/chessengine/
-├── controller/
-│   └── ChessController.java          # REST endpoint: POST /api/chess/analyze
-├── service/
-│   ├── ChessService.java             # Interface
-│   └── impl/
-│       └── ChessServiceImpl.java     # Core analysis algorithm
-├── engine/
-│   ├── process/
-│   │   └── StockfishProcessManager.java  # OS process lifecycle + UCI I/O
-│   └── uci/
-│       └── UciProtocolHandler.java       # UCI command building + parsing
-├── dto/
-│   ├── AnalyzeRequestDTO.java        # Request payload
-│   ├── GameAnalysisResponseDTO.java  # Full analysis response
-│   ├── MoveAnalysisDTO.java          # Per-move evaluation data
-│   └── GameStatusDTO.java           # Single engine evaluation result
-├── util/
-│   └── OpeningBook.java              # Static opening book lookup
-└── config/
-    └── EngineProperties.java         # Configurable defaults (elo, depth, movetime)
+# 3. Open Browser at Analysis View
+# Navigate to: http://localhost:5173/ -> Click "Analyze Game"
 ```
