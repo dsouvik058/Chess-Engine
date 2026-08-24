@@ -17,14 +17,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   opponentName = 'Opponent',
 }) => {
   const [inputText, setInputText] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    scrollToBottom();
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
   }, [messages]);
 
   const handleSend = (e: React.FormEvent) => {
@@ -43,7 +41,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       </div>
 
       {/* Messages Feed */}
-      <div className="flex-1 p-3 overflow-y-auto space-y-2 font-sans text-xs">
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 p-3 overflow-y-auto space-y-2 font-sans text-xs"
+      >
         {messages.length === 0 ? (
           <div className="h-full flex items-center justify-center text-slate-500 italic text-[11px]">
             No messages yet. Say hi to your opponent!
@@ -80,7 +81,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             );
           })
         )}
-        <div ref={messagesEndRef} />
       </div>
 
       {/* Input Form */}
@@ -90,9 +90,16 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           placeholder="Type a message..."
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
+          maxLength={200}
           className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-500"
         />
-        <Button type="submit" variant="accent" size="sm" className="px-3 py-1.5">
+        <Button
+          type="submit"
+          variant="accent"
+          size="sm"
+          className="px-3 py-1.5"
+          disabled={!inputText.trim()}
+        >
           <Send className="w-3.5 h-3.5" />
         </Button>
       </form>

@@ -7,6 +7,7 @@ import { PromotionModal } from '../components/chess/PromotionModal';
 import { Modal } from '../components/ui/Modal';
 import { GameControls } from '../components/chess/GameControls';
 import { ChatPanel } from '../components/chess/ChatPanel';
+import { ChatPanel as LiveChatPanel } from '../components/chat/ChatPanel';
 import { useChessClock } from '../hooks/useChessClock';
 import { Badge } from '../components/ui/Badge';
 import { EngineStatsPanel } from '../components/chess/EngineStatsPanel';
@@ -276,6 +277,38 @@ describe('UI & DOM Interaction Tests for Bug Fixes', () => {
 
       fireEvent.submit(input.closest('form')!);
       expect(handleSend).toHaveBeenCalledWith('Good luck!');
+    });
+
+    it('disables submit button and prevents sending whitespace-only messages in LiveChatPanel', () => {
+      const handleSend = vi.fn();
+
+      render(
+        <LiveChatPanel
+          messages={[]}
+          onSendMessage={handleSend}
+          myPlayerId="player-1"
+          opponentName="Grandmaster opponent"
+        />
+      );
+
+      const input = screen.getByPlaceholderText('Type a message...');
+      const submitBtn = screen.getByRole('button', { name: '' });
+
+      // Initially disabled when empty
+      expect(submitBtn).toBeDisabled();
+
+      // Type spaces
+      fireEvent.change(input, { target: { value: '    ' } });
+      expect(submitBtn).toBeDisabled();
+      fireEvent.submit(input.closest('form')!);
+      expect(handleSend).not.toHaveBeenCalled();
+
+      // Type valid message
+      fireEvent.change(input, { target: { value: '  Hello!  ' } });
+      expect(submitBtn).not.toBeDisabled();
+
+      fireEvent.submit(input.closest('form')!);
+      expect(handleSend).toHaveBeenCalledWith('Hello!');
     });
   });
 
