@@ -4,8 +4,8 @@ import type { PieceDropHandlerArgs, SquareHandlerArgs } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import type { Square } from 'chess.js';
 import type { BoardTheme, PlayerColor } from '../../types/chess';
-import { PromotionModal } from './PromotionModal';
-import type { PromotionPieceOption } from './PromotionModal';
+import { PromotionModal } from '../modals/PromotionModal';
+import type { PromotionPieceOption } from '../modals/PromotionModal';
 
 interface ChessBoardContainerProps {
   game: Chess;

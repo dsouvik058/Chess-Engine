@@ -20,7 +20,7 @@ import {
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { Modal } from '../ui/Modal';
-import { EvaluationBar } from './EvaluationBar';
+import { EvaluationBar } from '../chess/EvaluationBar';
 import { AiCoachPanel } from './AiCoachPanel';
 import { api } from '../../services/api';
 import type { MoveClassification, AiCoachResponse, AiCoachRequest, CoachPersona } from '../../types/chess';
